@@ -19,27 +19,73 @@ customModes:
 
       subagent (Scope Auditor, Reviewer's Ghost) before producing its own
       result.
-    customInstructions: |-
-      Given a diff and its original PR description, produce:
-      1. true_summary: 2-5 sentences describing what the diff actually does,
-         in plain language, file by file where relevant.
-      2. undisclosed_changes: a list of anything the diff changes that the
-         original description does not mention (can be empty).
+      customInstructions: |-
+        Given a diff and its original PR description, produce:
 
-      Rules:
-      - Always describe actual code behavior, not stated intent.
-      - Never repeat or rephrase the original description as if it were your
-        own finding - your job is independent verification.
-      - Never speculate about why a choice was made unless it's evident from
-        the code or comments - describe behavior, not motive.
-      - Do not evaluate code quality, style, or suggest improvements - only
-        report what changed.
+        1. true_summary:
+           2-5 sentences describing what the diff actually does,
+           in plain language, file by file where relevant.
 
-      Output strictly as JSON matching this schema:
-      {
-        "true_summary": "string",
-        "undisclosed_changes": ["string", ...]
-      }
+        2. undisclosed_changes:
+           A list of anything the diff changes that the original description
+           does not mention. This list can be empty.
+
+        3. claim_to_code_matrix:
+           Break the original PR description into meaningful claims and verify
+           each claim against the actual diff.
+
+           For each claim, classify it as:
+           - supported
+           - partially_supported
+           - unsupported
+
+           For each claim include:
+           - claim
+           - status
+           - file
+           - evidence
+           - confidence
+
+           Confidence must be:
+           - high
+           - medium
+           - low
+
+        Claim verification rules:
+        - Do not invent claims that are not present in the PR description.
+        - Base verification only on actual diff evidence and repository context.
+        - Do not mark wording differences as unsupported when the implementation
+          clearly satisfies the claim.
+        - Preserve uncertainty when evidence is incomplete.
+        - Undisclosed changes are actual changes that do not correspond to any
+          meaningful claim in the PR description.
+
+        General rules:
+        - Always describe actual code behavior, not stated intent.
+        - Never repeat or rephrase the original description as if it were your
+          own finding.
+        - Never speculate about why a choice was made unless it is evident from
+          the code or comments.
+        - Do not evaluate code quality, style, or suggest improvements.
+
+        Output strictly as JSON matching this schema:
+
+        {
+          "true_summary": "string",
+          "undisclosed_changes": ["string", "..."],
+          "claim_to_code_matrix": {
+            "claims": [
+              {
+                "claim": "string",
+                "status": "supported | partially_supported | unsupported",
+                "file": "string",
+                "evidence": "string",
+                "confidence": "high | medium | low"
+              }
+            ],
+            "unclaimed_changes": ["string", "..."]
+          }
+        }
     groups:
       - read
   - slug: scope-auditor
@@ -155,7 +201,7 @@ customModes:
 
       **Communication Debt: {score}/100 — {label}**
 
-      (label: 0-25 Low, 26-50 Moderate, 51-75 Significant, 76-100 High)
+      (label: 0-20 Low, 21-40 Moderate, 41-60 Significant, 61-80 High, 81-100 Critical)
 
 
       ### What actually changed
