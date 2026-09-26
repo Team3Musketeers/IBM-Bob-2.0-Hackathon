@@ -87,19 +87,23 @@
   },
   {
     "pr_number": 69784,
-    "true_summary": "NEEDS RE-VERIFICATION — see note below. Adds a single CSS rule to `client/src/templates/Challenges/components/independent-lower-jaw.css` that sets `white-space: pre-wrap; overflow-wrap: anywhere;` on `.independent-lower-jaw .hint-body code`. This preserves whitespace and wraps long code strings inside hint code blocks. Closes issue #67697. The diff is +5 lines, 0 deletions, 1 file changed.",
+    "true_summary": "Adds a single CSS rule to `client/src/templates/Challenges/components/independent-lower-jaw.css` that sets `white-space: pre-wrap; overflow-wrap: anywhere;` on `.independent-lower-jaw .hint-body code`. This preserves whitespace and wraps long code strings inside hint code blocks. Closes issue #67697, whose title identifies the real bug (spaces trimmed in IndependentLowerJaw hint code blocks) — matching this fix exactly. The linked ticket's body also separately mentions an unrelated pyramid test-case expected-output complaint, which this PR does not address; that is a distinct issue from the one named in the ticket's title and is not part of this PR's actual scope.",
     "undisclosed_changes": [
-      "DISPUTED IN BATCH RUN — earlier individual test with real ticket text found no discrepancy. Re-run individually before trusting this."
+      "The `overflow-wrap: anywhere` addition is not mentioned in the PR description (which only describes preserving spaces) — it's a companion defensive rule preventing long unbreakable strings from overflowing the hint panel, not disclosed separately."
     ],
     "scope_flags": [
-      "DISPUTED: batch run claims issue #67697 is about a pyramid-generator test-case mismatch, contradicting the earlier individual test which read the ticket as matching the CSS fix. Re-verify against dataset/issue_67697.json directly before using this result."
+      {
+        "type": "beyond scope (low severity)",
+        "detail": "overflow-wrap: anywhere was added alongside white-space: pre-wrap; the ticket only asks about space preservation. Judged low-severity: this is a standard, tightly-coupled companion CSS property addressing the same rendering surface, not a behavioral or cross-cutting change."
+      }
     ],
     "predicted_questions": [
-      "Re-run this PR individually (fresh task) against @dataset/issue_67697.json to resolve the scope_flags discrepancy before including in final results."
+      "The linked ticket's body also describes a separate pyramid-generator test-case expected-output issue. Is that tracked as its own separate bug, or does closing #67697 inadvertently mark that unrelated complaint as resolved too?",
+      "Was `overflow-wrap: break-word` considered instead of the more aggressive `overflow-wrap: anywhere`, which can break mid-word and may affect readability of short code snippets?"
     ],
-    "communication_debt_score": null,
-    "score_breakdown": { "description_gap": null, "scope_creep": null, "unanswered_risk": null },
-    "_needs_rerun": true
+    "communication_debt_score": 18,
+    "score_breakdown": { "description_gap": 8, "scope_creep": 4, "unanswered_risk": 6 },
+    "_note": "Re-verified in a fresh task after an earlier batch run misread the ticket. This result reconciles the ticket's title (the real, addressed bug) with its body (which also mentions an unrelated, unaddressed complaint)."
   },
   {
     "pr_number": 69571,
