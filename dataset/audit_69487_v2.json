@@ -1,0 +1,39 @@
+{
+  "true_summary": "The diff migrates the PayPal donation button from a custom class-component adapter that used the legacy window.paypal.Buttons.driver('react', {React, ReactDOM}) API with manual script tag injection/removal, to the official @paypal/react-paypal-js library. The deleted paypal-button-script-loader.tsx (204-line class component) is replaced by a function component in paypal-button.tsx that wraps <PayPalScriptProvider> and <PayPalButtons> from the new package. Script lifecycle management moves from imperative componentDidUpdate DOM manipulation to a useEffect hook dispatching DISPATCH_ACTION.RESET_OPTIONS. The createOrder call gains an explicit intent:'CAPTURE' field not present in the old code, onApprove is refactored from .then() chaining to async/await (with optional chaining on actions.order?.capture()), a hardcoded alwaysDisabledFunding list of 11 payment methods is introduced, the isPaypalLoading/isSubscription/ref props are removed from the public interface, and the e2e mock is updated to drop Buttons.driver() and add isEligible() and a resolved render() promise.",
+  "undisclosed_changes": [
+    "A hardcoded alwaysDisabledFunding array permanently disables 11 funding sources (credit, bancontact, blik, eps, giropay, ideal, mybank, p24, sepa, sofort, venmo) with no configuration path to re-enable them.",
+    "createOrder now sends intent:'CAPTURE' explicitly to the PayPal API; the old code omitted this field, making this a behavioral change to the payment flow not mentioned in the description.",
+    "onApprove switches to async/await with actions.order?.capture() using optional chaining — if actions.order is undefined, the capture is silently skipped with no error surfaced.",
+    "The isPaypalLoading prop and its loading-state pass-through from donate-form.tsx are silently removed, potentially breaking loading UX for donors while the SDK initializes.",
+    "The isSubscription prop is removed from PaypalButton's public interface with no documented migration path.",
+    "The ref? prop is removed from PaypalButton, breaking any parent that held a ref to the class component instance.",
+    "Six new transitive runtime dependencies are added (including server-only@0.0.1 and promise-polyfill@8.3.0) — none mentioned in the description beyond the top-level package."
+  ],
+  "scope_flags": [
+    {"type": "beyond scope", "detail": "createOrder adds intent:'CAPTURE' — a behavioral change to the PayPal order intent not justified or mentioned by the adapter-swap rationale."},
+    {"type": "beyond scope", "detail": "onApprove is changed to async and now awaits a capture call, introducing new server-round-trip logic not described anywhere in the PR description."},
+    {"type": "beyond scope", "detail": "New alwaysDisabledFunding constant and getScriptOptions helper are added — neither mentioned or justified in the description."},
+    {"type": "beyond scope", "detail": "Removal of isSubscription prop from paypal-button.tsx changes the component's public interface beyond what is needed to swap the underlying adapter."},
+    {"type": "beyond scope", "detail": "server-only@0.0.1 appears as a new transitive dependency for a client-side package, which may affect build target assumptions."},
+    {"type": "incomplete", "detail": "The description claims the new library 'ships its own error boundary' but no error boundary wiring or test is visible in the diff."},
+    {"type": "incomplete", "detail": "The description says the fix 'unblocks the React 19 upgrade' but no React version bump or revert of #69474 is present, leaving the stated goal only partially achieved."}
+  ],
+  "predicted_questions": [
+    {"question": "The onApprove handler for one-time payments calls onApprove(details) after actions.order?.capture(), but the TODO comment admits 'passing details looks wrong but the api ignores it for now'. What does the upstream callback actually expect, and is there a risk a future API change silently breaks payment confirmation?", "file": "client/src/components/Donation/paypal-button.tsx", "line": "150-165"},
+    {"question": "createOrder now hardcodes intent:'CAPTURE' — was this intent previously configured elsewhere, and could adding it here conflict with subscription flows where the intent should be SUBSCRIPTION rather than CAPTURE?", "file": "client/src/components/Donation/paypal-button.tsx", "line": "130-145"},
+    {"question": "The useEffect dispatching DISPATCH_ACTION.RESET_OPTIONS is gated on optionsKey changing — could it trigger an extra SDK reload on initial mount, causing a missed handlePaymentButtonLoad call if isResolved fires before the reset completes?", "file": "client/src/components/Donation/paypal-button.tsx", "line": "100-120"},
+    {"question": "The isPaypalLoading prop and loading.paypal state are removed from donate-form.tsx. What now controls the loading/disabled UX while the PayPal SDK initialises, and is there a window where the button appears interactive before the SDK is ready?", "file": "client/src/components/Donation/donate-form.tsx", "line": "270-276"},
+    {"question": "forceReRender is set to [amount, planId, isSubscription, style.color] — if a user changes their donation amount or switches between one-time and subscription, could RESET_OPTIONS be dispatched redundantly alongside forceReRender, causing a race condition or duplicate order creation?", "file": "client/src/components/Donation/paypal-button.tsx", "line": "155-175"},
+    {"question": "The e2e fake SDK drops the Buttons.driver stub entirely and only mocks at the window.paypal.Buttons level. Do the e2e tests now actually exercise the PayPalButtons React component code path, or are they too shallow to catch regressions in onApprove and createOrder?", "file": "e2e/paypal-donation.spec.ts", "line": "37-50"},
+    {"question": "server-only@0.0.1 and promise-polyfill@8.3.0 are new transitive dependencies pulled in by @paypal/react-paypal-js — has there been any vetting that server-only does not cause issues if accidentally imported into the client-side bundle?", "file": "pnpm-lock.yaml", "line": "1"}
+  ],
+  "communication_debt_score": 76,
+  "score_breakdown": {
+    "description_gap": 28,
+    "scope_creep": 22,
+    "unanswered_risk": 26
+  },
+  "agent_consensus": "partial",
+  "human_review_recommended": true,
+  "disagreement_note": "The Scope Auditor rated intent:'CAPTURE' and async onApprove as medium-severity scope flags (undisclosed additions), while both the Technical Truth-Teller and Reviewer's Ghost independently rated these same payment-flow changes as high-risk due to the potential for silent capture failures and incorrect payload forwarding to the donation backend."
+}
