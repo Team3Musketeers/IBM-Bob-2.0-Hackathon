@@ -1,0 +1,65 @@
+{
+  "pr": {
+    "number": 0,
+    "title": "",
+    "original_description": "",
+    "linked_ticket": null
+  },
+
+  "communication_debt": {
+    "score": 0,
+    "classification": "low",
+    "breakdown": {
+      "description_gap": 0,
+      "scope_creep": 0,
+      "unanswered_risk": 0
+    }
+  },
+
+  "technical_truth": {
+    "true_summary": "",
+    "undisclosed_changes": []
+  },
+
+  "scope_analysis": {
+    "scope_flags": []
+  },
+
+  "review_analysis": {
+    "predicted_questions": [],
+    "prioritized_questions": []
+  },
+
+  "reviewer_checklist": [],
+
+  "risk_heatmap": {
+    "file_risk_map": [],
+    "overall_riskiest_files": []
+  },
+
+  "test_suggestions": [],
+
+  "description_rewrite": {
+    "improved_title": "",
+    "improved_description": "",
+    "changes_added_to_description": []
+  },
+
+  "audit_summary": {
+    "main_concern": "",
+    "riskiest_file": "",
+    "reviewer_next_action": "",
+    "one_sentence_summary": ""
+  },
+
+  "metadata": {
+    "generated_by": "Ghostwriter",
+    "schema_version": "1.0"
+  },
+
+  "claim_to_code_matrix": {
+    "claims": [],
+    "unclaimed_changes": []
+  }
+
+}
