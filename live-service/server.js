@@ -21,6 +21,21 @@ app.use(express.static(path.join(__dirname, 'public')));
 const PROMPT_DIR = path.join(__dirname, 'prompts');
 const loadPrompt = (file) => fs.readFileSync(path.join(PROMPT_DIR, file), 'utf8');
 
+// ---- Bundled Bob-audited dataset (the 11 PRs) — used to regenerate a
+// missing artifact (e.g. a Review Composer comment) for an already-Bob-
+// audited PR WITHOUT re-running the 3 subagents. The scoring in
+// audit_results.json was produced and validated inside Bob 2.0; this only
+// re-runs the cheap, deterministic-shaped composition step on top of it. ----
+const DATASET_DIR = path.join(__dirname, 'dataset');
+
+// Serve a bundled diff by PR number, so the dashboard can request one
+// on demand instead of embedding all 11 (some are 250KB+) into the page.
+app.get('/api/dataset-diff/:prNumber', (req, res) => {
+  const file = path.join(DATASET_DIR, `pr_${req.params.prNumber}.diff`);
+  if (!fs.existsSync(file)) return res.status(404).json({ error: 'No bundled diff for this PR number.' });
+  res.type('text/plain').send(fs.readFileSync(file, 'utf8'));
+});
+
 const PROMPTS = {
   truthTeller: loadPrompt('technical-truth-teller.md'),
   scopeAuditor: loadPrompt('scope-auditor.md'),
@@ -132,17 +147,13 @@ async function fetchFromGithub(prUrl) {
 // against, or skip Review Composer if they just want the raw score.
 app.post('/api/audit', async (req, res) => {
   try {
-    let { prUrl, title, original_description, diff, linked_ticket, modes } = req.body;
+    let { prUrl, title, original_description, diff, linked_ticket, modes, precomputedAudit } = req.body;
 
     if (prUrl) {
       const fetched = await fetchFromGithub(prUrl);
       title = fetched.title;
       original_description = fetched.original_description;
       diff = fetched.diff;
-    }
-
-    if (!diff || !original_description) {
-      return res.status(400).json({ error: 'Provide either prUrl, or diff + original_description directly.' });
     }
 
     const requestedModes = Array.isArray(modes) && modes.length ? modes : ALL_MODES;
@@ -152,6 +163,35 @@ app.post('/api/audit', async (req, res) => {
     }
     const runSubagent = (key) => requestedModes.includes(key);
     const runReviewComposer = requestedModes.includes('reviewComposer');
+
+    // ---- Fast path: an already-Bob-validated audit was supplied directly
+    // (from the "Bob-Audited Dataset" tab, for a PR that's missing e.g. a
+    // Review Composer output). Skip the 3 subagents and synthesis entirely
+    // - that scoring was already produced and validated inside Bob 2.0 -
+    // and go straight to composing the requested missing artifact on top
+    // of it. This keeps the Bob-produced numbers authoritative; only the
+    // formatting/composition step is re-run live. Only needs a diff, not a
+    // fresh description, since the cached audit already carries everything
+    // Review Composer needs to know about the PR. ----
+    if (precomputedAudit && runReviewComposer) {
+      if (!diff) return res.status(400).json({ error: 'precomputedAudit requires diff.' });
+      const review_comment = await callModel(
+        PROMPTS.reviewComposer,
+        JSON.stringify({ ...precomputedAudit, diff }),
+        { raw: true }
+      );
+      return res.json({
+        pr_title: title || null,
+        original_description: original_description || null,
+        ...precomputedAudit,
+        review_comment,
+        _source: 'precomputed_audit+live_composition',
+      });
+    }
+
+    if (!diff || !original_description) {
+      return res.status(400).json({ error: 'Provide either prUrl, or diff + original_description directly.' });
+    }
 
     // The 3 audit subagents that CAN run in parallel — only the ones the
     // caller actually selected. Still fully isolated from each other,

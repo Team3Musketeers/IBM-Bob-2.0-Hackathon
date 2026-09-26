@@ -15,6 +15,19 @@ The three subagent JSON outputs for a single PR:
 
 Plus the PR's original description, for scoring the description_gap dimension.
 
+**Any subagent may be marked `"not_run"` instead of a real output** (the
+person auditing chose not to run it). Handle this explicitly rather than
+guessing or treating it as an empty/clean result:
+- Skip that dimension's contribution to `communication_debt_score` and set
+  its `score_breakdown` entry to `null` rather than 0 — a skipped check is
+  not the same as a clean check, and scoring it as 0 would misrepresent a
+  PR as more trustworthy than it's actually been shown to be.
+- Exclude that subagent's `risk_level` from Agent Disagreement Detection
+  (Part 2) entirely — disagreement requires at least two real, independent
+  judgments to compare.
+- Add a top-level `subagents_skipped` field listing which were skipped,
+  so this is visible rather than silently absent.
+
 ## Part 1 — Communication Debt Score
 
 Compute a `communication_debt_score` from 0-100, broken into three weighted
@@ -36,10 +49,17 @@ dimensions:
   question touching a genuine production/security/data-integrity risk
   scores high, and multiple such questions compound toward the ceiling.
 
+If a dimension's subagent was skipped, its score is `null` and
+`communication_debt_score` is computed only from the dimensions that ran,
+scaled proportionally (e.g. two of three dimensions present → score out of
+their combined max, not silently averaged against a phantom zero).
+
 ## Part 2 — Agent Disagreement Detection
 
-Compare the three `risk_level` values (`low`/`medium`/`high`) from the
-three subagents.
+Compare the `risk_level` values (`low`/`medium`/`high`) from whichever
+subagents actually ran (minimum 2 required — if fewer than 2 ran, set
+`agent_consensus` to `"insufficient_data"` and `disagreement_note` to a
+short note explaining why).
 
 - **All three the same, or adjacent** (e.g. low/low/medium):
   `agent_consensus = "aligned"`, `human_review_recommended = false`
@@ -76,9 +96,10 @@ Produce strictly this JSON:
     "scope_creep": 0-30,
     "unanswered_risk": 0-30
   },
-  "agent_consensus": "aligned" | "partial" | "diverged",
+  "agent_consensus": "aligned" | "partial" | "diverged" | "insufficient_data",
   "human_review_recommended": true | false,
-  "disagreement_note": "string" | null
+  "disagreement_note": "string" | null,
+  "subagents_skipped": ["string", ...]
 }
 ```
 
