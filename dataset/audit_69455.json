@@ -1,0 +1,23 @@
+{
+  "true_summary": "This diff replaces physical CSS directional properties with their logical equivalents across seven client-side files to fix RTL (right-to-left) layout issues. In show-settings.css, padding-left is replaced with padding-inline-start in two rules, a shorthand padding is decomposed into padding-block and padding-inline, and a new [dir='rtl'] rule is added to flip the active-item box-shadow to the correct edge. In header.css, three instances of left on .skip-to-content-button are replaced with inset-inline-start. In camper.css, right is replaced with inset-inline-end, margin-left with margin-inline-start, and margin-right with margin-inline-end. In experience-display.tsx and portfolio-projects.tsx, inline React styles use marginInlineStart instead of marginLeft. In toggle-setting.css, left: -9999px becomes inset-inline-start: -9999px. In sidebar-panel.css, border-right becomes border-inline-end. In super-block-accordion.css, two padding-left: 0 rules become padding-inline-start: 0, two left positional values become inset-inline-start, a new .tags-wrapper rule sets padding-inline: 64px 10px (replacing an implicit left-only padding), and a new [dir='rtl'] block is added to apply transform: rotate(-90deg) on collapsed dropdown icons for chapter, module, and block headers. In super-block-search.css, left on the magnifier icon becomes inset-inline-start and right on the reset button becomes inset-inline-end.",
+  "undisclosed_changes": [
+    "In show-settings.css, the shorthand `padding: 0 1rem 0rem 2rem` is decomposed into `padding-block: 0` and `padding-inline: 2rem 1rem`, which reverses the inline start/end values compared to the original (original had padding-left 2rem, padding-right 1rem; new has padding-inline-start 2rem, padding-inline-end 1rem) — the description does not call out this specific padding decomposition.",
+    "In super-block-accordion.css, a new `.super-block-accordion .module-panel .accordion-block-expanded .tags-wrapper { padding-inline: 64px 10px }` rule is added — this is a net-new rule with a specific hard-coded 64px value, not merely a logical replacement of an existing physical property, and is not explicitly mentioned in the PR description.",
+    "The [dir='rtl'] dropdown icon rotation rule in super-block-accordion.css uses rotate(-90deg) for the collapsed state, which is the mirror of the LTR rotate(90deg) — the description mentions fixing dropdown icons but does not describe this specific transform direction detail.",
+    "In toggle-setting.css, `left: -9999px` (used to visually hide a radio input off-screen) is changed to `inset-inline-start: -9999px` — the description does not mention this accessibility/visually-hidden pattern change."
+  ],
+  "scope_flags": [],
+  "predicted_questions": [
+    "In show-settings.css (padding decomposition), the logical shorthand `padding-inline: 2rem 1rem` maps inline-start to 2rem and inline-end to 1rem — identical to the original LTR physical values. Was the start/end order intentionally preserved, or was the mapping accidentally swapped given that CSS logical shorthand is start-first?",
+    "In show-settings.css, an explicit `[dir='rtl']` rule is added to flip the box-shadow active-item highlight. Why was this done with a direction-specific selector rather than using a logical approach (e.g., border-inline-start) that would avoid needing a separate RTL override entirely?",
+    "In super-block-accordion.css, a `[dir='rtl']` rule is added to rotate .dropdown-icon to -90deg for collapsed buttons. Is there a corresponding [dir='rtl'] rule for the *expanded* state icon, or will expanded icons in RTL render incorrectly?",
+    "In super-block-accordion.css, a new rule targets `.tags-wrapper` with `padding-inline: 64px 10px`. This does not appear to be a 1:1 replacement of an existing physical property — what is the origin of the 64px value, and was an equivalent rule previously defined elsewhere that was missed?",
+    "The PR description states 'LTR was measured alongside RTL on every change and is unchanged.' Are there automated visual regression or RTL-specific integration tests covering these components, or is this assurance based solely on manual testing?"
+  ],
+  "communication_debt_score": 40,
+  "score_breakdown": {
+    "description_gap": 14,
+    "scope_creep": 8,
+    "unanswered_risk": 18
+  }
+}
