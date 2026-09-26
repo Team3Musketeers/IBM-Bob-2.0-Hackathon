@@ -1,0 +1,714 @@
+{
+  "_generated_by": "dashboard/render_dashboard.py",
+  "_source": "dataset/audit*.json (synthesis output per prompts/synthesis.md)",
+  "_notes": [
+    "PR #69455: audit_results.json superseded by audit_69455.json (equal scores)",
+    "PR #69487: audit_69487_v2.json scores 76 but audit_results.json scores 52; kept audit_69487_v2.json"
+  ],
+  "bands": {
+    "low": "< 25",
+    "medium": "25-45",
+    "high": "> 45"
+  },
+  "summary": {
+    "prs_audited": 11,
+    "total_undisclosed_changes": 35,
+    "total_scope_flags": 11,
+    "total_predicted_questions": 38,
+    "mean_score": 36.9,
+    "max_score": 76,
+    "min_score": 18,
+    "human_review_recommended": 1,
+    "agent_consensus": {
+      "partial": 1,
+      "not recorded": 10
+    }
+  },
+  "prs": [
+    {
+      "pr_number": 69487,
+      "url": "https://github.com/freeCodeCamp/freeCodeCamp/pull/69487",
+      "title": "fix(client): replace PayPal Buttons.driver with react-paypal-js",
+      "diffstat": "6 files · +237 · -336",
+      "author_claim": "## Summary\nPayPal's legacy `Buttons.driver('react', { React, ReactDOM })` adapter calls `ReactDOM.findDOMNode` in its own `componentDidMount`, which React 19 removed ÔÇö it threw during commit and, with no error boundary above it, unmounted the whole donate page rather than just the button. Replacing it with `@paypal/react-paypal-js`, which renders through a ref and ships its own error boundary, deletes `paypal-button-script-loader.tsx` outright and unblocks the React 19 upgrade (#69271, reverted in #69474). Verified locally against a real client id: `paypal-donation.spec.ts` passes 6/6 on both React 18 and React 19, where pre-migration React 19 gave a blank page and `TypeError: i.findDOMNode is not a function`.\n### Test fake update\nThe fake SDK added in #69477 implements only what `Buttons.driver` needed. `@paypal/react-paypal-js` also calls `isEligible()` and chains `.catch()` onto `render()`, so both are added here, and the now-unused `Buttons.driver` branch is dropped so the fake matches how the SDK is actually consumed.",
+      "communication_debt_score": 76,
+      "score_band": "high",
+      "score_breakdown": {
+        "description_gap": 28,
+        "scope_creep": 22,
+        "unanswered_risk": 26
+      },
+      "subagent_a": {
+        "slug": "technical-truth-teller",
+        "true_summary": "The diff migrates the PayPal donation button from a custom class-component adapter that used the legacy window.paypal.Buttons.driver('react', {React, ReactDOM}) API with manual script tag injection/removal, to the official @paypal/react-paypal-js library. The deleted paypal-button-script-loader.tsx (204-line class component) is replaced by a function component in paypal-button.tsx that wraps <PayPalScriptProvider> and <PayPalButtons> from the new package. Script lifecycle management moves from imperative componentDidUpdate DOM manipulation to a useEffect hook dispatching DISPATCH_ACTION.RESET_OPTIONS. The createOrder call gains an explicit intent:'CAPTURE' field not present in the old code, onApprove is refactored from .then() chaining to async/await (with optional chaining on actions.order?.capture()), a hardcoded alwaysDisabledFunding list of 11 payment methods is introduced, the isPaypalLoading/isSubscription/ref props are removed from the public interface, and the e2e mock is updated to drop Buttons.driver() and add isEligible() and a resolved render() promise.",
+        "undisclosed_changes": [
+          "A hardcoded alwaysDisabledFunding array permanently disables 11 funding sources (credit, bancontact, blik, eps, giropay, ideal, mybank, p24, sepa, sofort, venmo) with no configuration path to re-enable them.",
+          "createOrder now sends intent:'CAPTURE' explicitly to the PayPal API; the old code omitted this field, making this a behavioral change to the payment flow not mentioned in the description.",
+          "onApprove switches to async/await with actions.order?.capture() using optional chaining — if actions.order is undefined, the capture is silently skipped with no error surfaced.",
+          "The isPaypalLoading prop and its loading-state pass-through from donate-form.tsx are silently removed, potentially breaking loading UX for donors while the SDK initializes.",
+          "The isSubscription prop is removed from PaypalButton's public interface with no documented migration path.",
+          "The ref? prop is removed from PaypalButton, breaking any parent that held a ref to the class component instance.",
+          "Six new transitive runtime dependencies are added (including server-only@0.0.1 and promise-polyfill@8.3.0) — none mentioned in the description beyond the top-level package."
+        ]
+      },
+      "subagent_b": {
+        "slug": "scope-auditor",
+        "ticket_linked": false,
+        "ticket_source": "none found",
+        "scope_flags": [
+          {
+            "type": "beyond scope",
+            "detail": "createOrder adds intent:'CAPTURE' — a behavioral change to the PayPal order intent not justified or mentioned by the adapter-swap rationale."
+          },
+          {
+            "type": "beyond scope",
+            "detail": "onApprove is changed to async and now awaits a capture call, introducing new server-round-trip logic not described anywhere in the PR description."
+          },
+          {
+            "type": "beyond scope",
+            "detail": "New alwaysDisabledFunding constant and getScriptOptions helper are added — neither mentioned or justified in the description."
+          },
+          {
+            "type": "beyond scope",
+            "detail": "Removal of isSubscription prop from paypal-button.tsx changes the component's public interface beyond what is needed to swap the underlying adapter."
+          },
+          {
+            "type": "beyond scope",
+            "detail": "server-only@0.0.1 appears as a new transitive dependency for a client-side package, which may affect build target assumptions."
+          },
+          {
+            "type": "incomplete",
+            "detail": "The description claims the new library 'ships its own error boundary' but no error boundary wiring or test is visible in the diff."
+          },
+          {
+            "type": "incomplete",
+            "detail": "The description says the fix 'unblocks the React 19 upgrade' but no React version bump or revert of #69474 is present, leaving the stated goal only partially achieved."
+          }
+        ]
+      },
+      "subagent_c": {
+        "slug": "reviewers-ghost",
+        "predicted_questions": [
+          {
+            "question": "The onApprove handler for one-time payments calls onApprove(details) after actions.order?.capture(), but the TODO comment admits 'passing details looks wrong but the api ignores it for now'. What does the upstream callback actually expect, and is there a risk a future API change silently breaks payment confirmation?",
+            "file": "client/src/components/Donation/paypal-button.tsx",
+            "line": "150-165"
+          },
+          {
+            "question": "createOrder now hardcodes intent:'CAPTURE' — was this intent previously configured elsewhere, and could adding it here conflict with subscription flows where the intent should be SUBSCRIPTION rather than CAPTURE?",
+            "file": "client/src/components/Donation/paypal-button.tsx",
+            "line": "130-145"
+          },
+          {
+            "question": "The useEffect dispatching DISPATCH_ACTION.RESET_OPTIONS is gated on optionsKey changing — could it trigger an extra SDK reload on initial mount, causing a missed handlePaymentButtonLoad call if isResolved fires before the reset completes?",
+            "file": "client/src/components/Donation/paypal-button.tsx",
+            "line": "100-120"
+          },
+          {
+            "question": "The isPaypalLoading prop and loading.paypal state are removed from donate-form.tsx. What now controls the loading/disabled UX while the PayPal SDK initialises, and is there a window where the button appears interactive before the SDK is ready?",
+            "file": "client/src/components/Donation/donate-form.tsx",
+            "line": "270-276"
+          },
+          {
+            "question": "forceReRender is set to [amount, planId, isSubscription, style.color] — if a user changes their donation amount or switches between one-time and subscription, could RESET_OPTIONS be dispatched redundantly alongside forceReRender, causing a race condition or duplicate order creation?",
+            "file": "client/src/components/Donation/paypal-button.tsx",
+            "line": "155-175"
+          },
+          {
+            "question": "The e2e fake SDK drops the Buttons.driver stub entirely and only mocks at the window.paypal.Buttons level. Do the e2e tests now actually exercise the PayPalButtons React component code path, or are they too shallow to catch regressions in onApprove and createOrder?",
+            "file": "e2e/paypal-donation.spec.ts",
+            "line": "37-50"
+          },
+          {
+            "question": "server-only@0.0.1 and promise-polyfill@8.3.0 are new transitive dependencies pulled in by @paypal/react-paypal-js — has there been any vetting that server-only does not cause issues if accidentally imported into the client-side bundle?",
+            "file": "pnpm-lock.yaml",
+            "line": "1"
+          }
+        ]
+      },
+      "totals": {
+        "undisclosed_changes": 7,
+        "scope_flags": 7,
+        "predicted_questions": 7
+      },
+      "source_file": "audit_69487_v2.json",
+      "agent_consensus": "partial",
+      "human_review_recommended": true,
+      "disagreement_note": "The Scope Auditor rated intent:'CAPTURE' and async onApprove as medium-severity scope flags (undisclosed additions), while both the Technical Truth-Teller and Reviewer's Ghost independently rated these same payment-flow changes as high-risk due to the potential for silent capture failures and incorrect payload forwarding to the donation backend."
+    },
+    {
+      "pr_number": 69474,
+      "url": "https://github.com/freeCodeCamp/freeCodeCamp/pull/69474",
+      "title": "fix: Revert \"feat(client): upgrade to React 19 (#69271)\"",
+      "diffstat": "98 files · +762 · -487",
+      "author_claim": "This reverts commit 3746de82cf9eedfb03abae987d5fa1817427d249.\nCloses #69473",
+      "communication_debt_score": 68,
+      "score_band": "high",
+      "score_breakdown": {
+        "description_gap": 30,
+        "scope_creep": 14,
+        "unanswered_risk": 24
+      },
+      "subagent_a": {
+        "slug": "technical-truth-teller",
+        "true_summary": "Reverts commit 3746de82cf9eedfb03abae987d5fa181742d249 (which was PR #69271, the React 19 upgrade). The diff is the exact inverse of #69271: `react`/`react-dom` downgraded from 19.2.8 to 18.3.1, `@types/react` from 19.2.17 to 18.3.28, `@types/react-dom` from 19.2.3 to 18.3.7, `@testing-library/react` from 16.3.2 to 14.3.1; `react-test-renderer` and `@types/react-test-renderer` re-added; `void headComponents.sort(...)` reverted to `headComponents.sort(...)`; all ~80 icon component type signatures restored to include `JSX.IntrinsicAttributes &`. Closes issue #69473 (donate page blank due to `findDOMNode` error with PayPal's legacy SDK under React 19). The description body is 'This reverts commit 3746de82...' with no further explanation.",
+        "undisclosed_changes": [
+          "The description is a single-line auto-generated git revert message. It provides zero context for *why* the revert was needed beyond the issue number. Issue #69473 shows the actual error (`i.findDOMNode is not a function` from PayPal's legacy SDK), but this is not summarised in the PR body.",
+          "The description does not mention the ~80 icon file type-signature changes being reverted, nor the `gatsby-ssr.tsx` change being undone.",
+          "The 'I have tested these changes' checkbox is unchecked (explicitly `[ ]`) — this is disclosed in the checklist but may be missed by reviewers scanning quickly.",
+          "The revert re-adds `react-test-renderer@18.3.1` and `@types/react-test-renderer@16.9.12`. The description does not mention these being restored nor whether anything depends on them."
+        ]
+      },
+      "subagent_b": {
+        "slug": "scope-auditor",
+        "ticket_linked": true,
+        "ticket_source": "derived from description",
+        "scope_flags": [
+          {
+            "type": "unspecified",
+            "detail": "A full React version revert touching ~98 files is described in one sentence. The scope of the revert is not enumerated."
+          }
+        ]
+      },
+      "subagent_c": {
+        "slug": "reviewers-ghost",
+        "predicted_questions": [
+          {
+            "question": "The testing checkbox is explicitly unchecked. For a revert of this scale (98 files, React version downgrade), what testing was performed before merging, if any?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "The root cause was PayPal's legacy SDK calling `ReactDOM.findDOMNode`, which React 19 removed. PR #69487 was merged later to fix PayPal properly. Was the plan always to revert React 19 and re-land it after the PayPal fix, or was the revert intended to be permanent?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "After this revert, `react-test-renderer` is back. Is it actually used by any test, or will it be removed again in the next React 19 attempt?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "The `void headComponents.sort(...)` workaround (added in #69271, reverted here) was addressing a react-helmet/Gatsby SSR issue. Does reverting to React 18 make that workaround unnecessary, or does the underlying Gatsby incompatibility still exist?",
+            "file": null,
+            "line": null
+          }
+        ]
+      },
+      "totals": {
+        "undisclosed_changes": 4,
+        "scope_flags": 1,
+        "predicted_questions": 4
+      },
+      "source_file": "audit_results.json"
+    },
+    {
+      "pr_number": 69271,
+      "url": "https://github.com/freeCodeCamp/freeCodeCamp/pull/69271",
+      "title": "feat(client): upgrade to React 19",
+      "diffstat": "98 files · +487 · -762",
+      "author_claim": "## Summary\n- Upgrades `react`, `react-dom`, `@types/react`, `@types/react-dom`, and `@testing-library/react` from 18 to 19, and drops the now-unused `react-test-renderer`/`@types/react-test-renderer`.\n- Updates icon component type signatures to match React 19's JSX types.\n- Fixes a `react-helmet` + Gatsby incompatibility under React 19: Gatsby 5.16.1 monkey-patches `React.createElement` for `title`/`meta`/`link` elements to support its own Head API. This changes `child.type` away from the plain string `'title'`, so `react-helmet` can no longer recognize a `<title>` child element and silently drops it, leaving `document.title` empty on the client for every page that rendered its title as `<title>{title}</title>` JSX. Fixed by passing the title through Helmet's `title` prop instead, which avoids creating a `<title>` element via JSX and sidesteps the patch. Verified against a real production build with Playwright, not just unit tests.",
+      "communication_debt_score": 44,
+      "score_band": "medium",
+      "score_breakdown": {
+        "description_gap": 20,
+        "scope_creep": 10,
+        "unanswered_risk": 14
+      },
+      "subagent_a": {
+        "slug": "technical-truth-teller",
+        "true_summary": "Upgrades React and related packages from v18 to v19 in `client/package.json`: `react` and `react-dom` from 18.3.1 to 19.2.8, `@types/react` from 18.3.28 to 19.2.17, `@types/react-dom` from 18.3.7 to 19.2.3, `@testing-library/react` from 14.3.1 to 16.3.2. Drops `react-test-renderer` and `@types/react-test-renderer` (both removed). Fixes a `react-helmet` + Gatsby SSR incompatibility by adding `void` before `headComponents.sort(...)` in `gatsby-ssr.tsx` (suppresses the unused return value). Updates icon component type signatures across ~80 `.tsx` files in `client/src/assets/icons/` by removing `JSX.IntrinsicAttributes &` from prop types (React 19 dropped the `JSX.IntrinsicAttributes` requirement). Adds `pnpm-lock.yaml` updates for all new package versions.",
+        "undisclosed_changes": [
+          "The PR description mentions upgrading React 18 → 19, dropping react-test-renderer, and fixing icon type signatures. It does not explicitly describe the `gatsby-ssr.tsx` change (`void headComponents.sort(...)`) — this is a targeted workaround for a react-helmet/Gatsby incompatibility and deserves its own explanation since it silences a lint warning rather than fixing the root cause.",
+          "The `void headComponents.sort(...)` change in `gatsby-ssr.tsx` is the exact inverse of what PR #69474 (a revert) will later undo — meaning this change was shipped, then a problem emerged, and it was reverted. The description does not flag that this is a known-fragile workaround.",
+          "The description does not mention that removing `JSX.IntrinsicAttributes &` from ~80 icon components could affect TypeScript consumers that relied on those attributes being required.",
+          "The lock file gains substantial new entries (React 19 transitive deps) not discussed in the description."
+        ]
+      },
+      "subagent_b": {
+        "slug": "scope-auditor",
+        "ticket_linked": false,
+        "ticket_source": "none found",
+        "scope_flags": [
+          {
+            "type": "unspecified",
+            "detail": "Bulk type-signature changes to ~80 icon files is a large mechanical change not highlighted as a separate concern in the description — reviewers may not notice the semantic effect on TypeScript consumers."
+          }
+        ]
+      },
+      "subagent_c": {
+        "slug": "reviewers-ghost",
+        "predicted_questions": [
+          {
+            "question": "The `void headComponents.sort(...)` suppresses the ESLint 'no unused expression' warning but does not explain *why* the sort's return value needs to be suppressed. What exactly is the react-helmet + Gatsby conflict, and is `void` the correct fix or a temporary workaround?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "Removing `react-test-renderer` and `@types/react-test-renderer` — were all usages audited to confirm nothing in the test suite still imports them? The lock file removal is shown but no test file changes appear in the diff.",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "The icon type change removes `JSX.IntrinsicAttributes &` from all props. In React 19, `JSX.IntrinsicAttributes` is now merged into the base component interface. Were there cases where having `IntrinsicAttributes` explicit was providing stricter type checking that is now lost?",
+            "file": null,
+            "line": null
+          }
+        ]
+      },
+      "totals": {
+        "undisclosed_changes": 4,
+        "scope_flags": 1,
+        "predicted_questions": 3
+      },
+      "source_file": "audit_results.json"
+    },
+    {
+      "pr_number": 69455,
+      "url": "https://github.com/freeCodeCamp/freeCodeCamp/pull/69455",
+      "title": "fix(client): correct RTL layout on settings, profile and superblock pages",
+      "diffstat": "9 files · +48 · -19",
+      "author_claim": "Fixes RTL layout on the settings, profile and superblock pages: the settings sidebar border and active-item highlight sat on the wrong edge and the page scrolled horizontally, the profile Edit/Add buttons and camper badge did not mirror, and the superblock rulers, dropdown icons, search icons and accordion tags were all on the wrong side.\nEach one came from a physical CSS property that does not flip for RTL, so the fix throughout is the logical equivalent. LTR was measured alongside RTL on every change and is unchanged.\nrel https://github.com/freeCodeCamp/freeCodeCamp/issues/67661",
+      "communication_debt_score": 40,
+      "score_band": "medium",
+      "score_breakdown": {
+        "description_gap": 14,
+        "scope_creep": 8,
+        "unanswered_risk": 18
+      },
+      "subagent_a": {
+        "slug": "technical-truth-teller",
+        "true_summary": "This diff replaces physical CSS directional properties with their logical equivalents across seven client-side files to fix RTL (right-to-left) layout issues. In show-settings.css, padding-left is replaced with padding-inline-start in two rules, a shorthand padding is decomposed into padding-block and padding-inline, and a new [dir='rtl'] rule is added to flip the active-item box-shadow to the correct edge. In header.css, three instances of left on .skip-to-content-button are replaced with inset-inline-start. In camper.css, right is replaced with inset-inline-end, margin-left with margin-inline-start, and margin-right with margin-inline-end. In experience-display.tsx and portfolio-projects.tsx, inline React styles use marginInlineStart instead of marginLeft. In toggle-setting.css, left: -9999px becomes inset-inline-start: -9999px. In sidebar-panel.css, border-right becomes border-inline-end. In super-block-accordion.css, two padding-left: 0 rules become padding-inline-start: 0, two left positional values become inset-inline-start, a new .tags-wrapper rule sets padding-inline: 64px 10px (replacing an implicit left-only padding), and a new [dir='rtl'] block is added to apply transform: rotate(-90deg) on collapsed dropdown icons for chapter, module, and block headers. In super-block-search.css, left on the magnifier icon becomes inset-inline-start and right on the reset button becomes inset-inline-end.",
+        "undisclosed_changes": [
+          "In show-settings.css, the shorthand `padding: 0 1rem 0rem 2rem` is decomposed into `padding-block: 0` and `padding-inline: 2rem 1rem`, which reverses the inline start/end values compared to the original (original had padding-left 2rem, padding-right 1rem; new has padding-inline-start 2rem, padding-inline-end 1rem) — the description does not call out this specific padding decomposition.",
+          "In super-block-accordion.css, a new `.super-block-accordion .module-panel .accordion-block-expanded .tags-wrapper { padding-inline: 64px 10px }` rule is added — this is a net-new rule with a specific hard-coded 64px value, not merely a logical replacement of an existing physical property, and is not explicitly mentioned in the PR description.",
+          "The [dir='rtl'] dropdown icon rotation rule in super-block-accordion.css uses rotate(-90deg) for the collapsed state, which is the mirror of the LTR rotate(90deg) — the description mentions fixing dropdown icons but does not describe this specific transform direction detail.",
+          "In toggle-setting.css, `left: -9999px` (used to visually hide a radio input off-screen) is changed to `inset-inline-start: -9999px` — the description does not mention this accessibility/visually-hidden pattern change."
+        ]
+      },
+      "subagent_b": {
+        "slug": "scope-auditor",
+        "ticket_linked": false,
+        "ticket_source": "none found",
+        "scope_flags": []
+      },
+      "subagent_c": {
+        "slug": "reviewers-ghost",
+        "predicted_questions": [
+          {
+            "question": "In show-settings.css (padding decomposition), the logical shorthand `padding-inline: 2rem 1rem` maps inline-start to 2rem and inline-end to 1rem — identical to the original LTR physical values. Was the start/end order intentionally preserved, or was the mapping accidentally swapped given that CSS logical shorthand is start-first?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "In show-settings.css, an explicit `[dir='rtl']` rule is added to flip the box-shadow active-item highlight. Why was this done with a direction-specific selector rather than using a logical approach (e.g., border-inline-start) that would avoid needing a separate RTL override entirely?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "In super-block-accordion.css, a `[dir='rtl']` rule is added to rotate .dropdown-icon to -90deg for collapsed buttons. Is there a corresponding [dir='rtl'] rule for the *expanded* state icon, or will expanded icons in RTL render incorrectly?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "In super-block-accordion.css, a new rule targets `.tags-wrapper` with `padding-inline: 64px 10px`. This does not appear to be a 1:1 replacement of an existing physical property — what is the origin of the 64px value, and was an equivalent rule previously defined elsewhere that was missed?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "The PR description states 'LTR was measured alongside RTL on every change and is unchanged.' Are there automated visual regression or RTL-specific integration tests covering these components, or is this assurance based solely on manual testing?",
+            "file": null,
+            "line": null
+          }
+        ]
+      },
+      "totals": {
+        "undisclosed_changes": 4,
+        "scope_flags": 0,
+        "predicted_questions": 5
+      },
+      "source_file": "audit_69455.json"
+    },
+    {
+      "pr_number": 69766,
+      "url": "https://github.com/freeCodeCamp/freeCodeCamp/pull/69766",
+      "title": "fix(client): update JSON module imports",
+      "diffstat": "20 files · +58 · -31",
+      "author_claim": "## Problem\nWebpack emits warnings when the client imports properties directly from JSON modules, for example:\n```text\nShould not import the named export 'apiLocation' (imported as 'apiLocation') from default-exporting module (only default export is available soon)\n```\nThe same warning appears for client environment values such as `clientLocale`, `radioLocation`, and the Algolia configuration, as well as package `version` imports used by the challenge builder and browser worker tooling.\n## Summary\nThis replaces named imports and re-exports from JSON modules with default imports followed by property access or destructuring.\nIt updates client environment configuration imports and package-version imports used by the challenge builder and browser worker tooling. This removes Webpack's deprecated named JSON export warnings without changing runtime behavior.\n## Testing\n- Client type-check and lint\n- 32 focused client tests\n- Challenge-builder type-check, lint, and build\n- Browser-scripts lint and production Webpack build\n- Focused TypeScript checks for the changed browser scripts",
+      "communication_debt_score": 38,
+      "score_band": "medium",
+      "score_breakdown": {
+        "description_gap": 16,
+        "scope_creep": 10,
+        "unanswered_risk": 12
+      },
+      "subagent_a": {
+        "slug": "technical-truth-teller",
+        "true_summary": "Replaces named imports from JSON modules with default-import-then-destructure across 12 files in `client/src/` and 2 files in `client/tools/`, plus 2 files in `tools/client-plugins/` and 1 in `packages/challenge-builder/src/`. The pattern is consistent: `import { X } from 'module.json'` becomes `import envData from 'module.json'; const { X } = envData;` (for env.json imports) and `import { version } from 'package.json'` becomes `import pkg from 'package.json'; ... pkg.version` (for package.json version imports). One exception: `independent-lower-jaw.tsx` moves the destructuring inside the component function body rather than at module scope. The stated motivation is eliminating Webpack 'should not import named export' warnings from default-only JSON modules.",
+        "undisclosed_changes": [
+          "In `independent-lower-jaw.tsx`, the destructuring `const { apiLocation, clientLocale } = envData;` is placed *inside* the component function body rather than at module scope (as done in all other files). This means it re-evaluates on every render. The description does not mention or justify this inconsistency.",
+          "The diff touches files outside `client/src/` — specifically `tools/client-plugins/browser-scripts/copy-scripts.ts`, `sass-compile.ts`, `test-runner.ts`, and `packages/challenge-builder/src/transformers.js`. The PR description says 'This replaces named imports... with default imports' but does not enumerate the non-client-src scope.",
+          "In `test-runner.ts`, `export { version } from '...'` is replaced with `export const version = curriculumHelpers.version;` — this changes from a re-export to a computed const export, which is a subtle semantic difference (the re-export was live binding; the const is a snapshot at module initialization time)."
+        ]
+      },
+      "subagent_b": {
+        "slug": "scope-auditor",
+        "ticket_linked": false,
+        "ticket_source": "none found",
+        "scope_flags": [
+          {
+            "type": "unspecified",
+            "detail": "Changes extend beyond client/src/ into tools/ and packages/ without the description calling this out."
+          }
+        ]
+      },
+      "subagent_c": {
+        "slug": "reviewers-ghost",
+        "predicted_questions": [
+          {
+            "question": "In `independent-lower-jaw.tsx`, why was `const { apiLocation, clientLocale } = envData;` placed inside the component function rather than at module scope like all other files in this PR? Is this intentional for any reason, or an oversight?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "The `export { version }` re-export in `test-runner.ts` is changed to `export const version = curriculumHelpers.version;`. Are there downstream consumers that import `version` from this module and could be affected by the binding type changing from a live re-export to a snapshot const?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "Do the Webpack warnings being fixed affect development builds, production builds, or both? Is there a CI step or log sample that shows the warnings are now gone?",
+            "file": null,
+            "line": null
+          }
+        ]
+      },
+      "totals": {
+        "undisclosed_changes": 3,
+        "scope_flags": 1,
+        "predicted_questions": 3
+      },
+      "source_file": "audit_results.json"
+    },
+    {
+      "pr_number": 69775,
+      "url": "https://github.com/freeCodeCamp/freeCodeCamp/pull/69775",
+      "title": "chore(api/client): remove temp daily challenge transition code",
+      "diffstat": "5 files · +6 · -115",
+      "author_claim": "This deletes some code that was used to transition the daily challenges from having a new one every day, to the rolling 365 calendar.\nCloses #XXXXX",
+      "communication_debt_score": 34,
+      "score_band": "medium",
+      "score_breakdown": {
+        "description_gap": 18,
+        "scope_creep": 0,
+        "unanswered_risk": 16
+      },
+      "subagent_a": {
+        "slug": "technical-truth-teller",
+        "true_summary": "Removes temporary scaffolding code that was gating the daily coding challenge behind a 'first-run' period ending 2026-08-10. Deletions span 5 files: (1) `helpers.ts` — removes `LAST_DAY_OF_NEW_DAILY_CHALLENGES` constant and `lastDailyChallengeIsReleased()` function; (2) `calendar.tsx` — removes `MonthInfo` interface, `hasOlderChallenges()`, `hasNewerChallenges()` helper functions, `lastDailyChallengeReleased` state variable, and the `requireExactYear` parameter from `getMonthInfo()` calls; simplifies `showPrevButton` and `showNextButton` to plain offset comparisons; (3) `calendar.test.tsx` — removes `requireExactYear` test suite (3 tests); (4) `daily-coding-challenge.ts` (API route) — removes the `if (sourceDate > getUtcMidnight(getNowUsCentral()))` early-return block that returned 404 for unreleased days; (5) `daily-coding-challenge.test.ts` (API test) — removes the 2 test cases covering the temporal blocking behaviour. Net: +6 additions (minor simplifications), -115 deletions.",
+        "undisclosed_changes": [
+          "The PR description says 'This deletes some code that was used to transition the daily challenges from having a new one every day, to the rolling 365 calendar.' It does not specify that the server-side API route now returns challenges for *any* date regardless of whether that date's challenge has been 'released' relative to real time — this is a functional behaviour change, not just cleanup.",
+          "The `requireExactYear` parameter and its logic are removed without any discussion of when/why it was needed and whether any calendar views still need year-exact filtering.",
+          "The description does not mention the API test file changes (removal of 2 tests)."
+        ]
+      },
+      "subagent_b": {
+        "slug": "scope-auditor",
+        "ticket_linked": false,
+        "ticket_source": "none found",
+        "scope_flags": []
+      },
+      "subagent_c": {
+        "slug": "reviewers-ghost",
+        "predicted_questions": [
+          {
+            "question": "The API route previously returned 404 for challenge dates in the future (i.e., not yet 'released'). After this PR, what prevents a user from accessing a challenge for a future date by crafting the URL directly?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "`requireExactYear` was filtering calendar display to only show challenges matching the displayed year. Without it, could a challenge from 2025-08-15 appear in the August 2026 calendar view? What is the expected behaviour for year rollover?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "The `hasOlderChallenges` and `hasNewerChallenges` helpers that scanned the map to determine whether prev/next navigation buttons should be shown are replaced by simple offset comparisons (`monthOffset > minMonthOffset`). Does the hardcoded `minMonthOffset = -12` correctly bound the calendar to the full available data range, or could there be edge cases at the start of the challenge archive?",
+            "file": null,
+            "line": null
+          }
+        ]
+      },
+      "totals": {
+        "undisclosed_changes": 3,
+        "scope_flags": 0,
+        "predicted_questions": 3
+      },
+      "source_file": "audit_results.json"
+    },
+    {
+      "pr_number": 69571,
+      "url": "https://github.com/freeCodeCamp/freeCodeCamp/pull/69571",
+      "title": "fix(client): render FaqItem as a proper component",
+      "diffstat": "3 files · +78 · -17",
+      "author_claim": "Closes #68170",
+      "communication_debt_score": 28,
+      "score_band": "medium",
+      "score_breakdown": {
+        "description_gap": 14,
+        "scope_creep": 0,
+        "unanswered_risk": 14
+      },
+      "subagent_a": {
+        "slug": "technical-truth-teller",
+        "true_summary": "Refactors `FaqItem` in `client/src/components/Donation/donation-text-components.tsx` from a plain function called imperatively to a proper React component rendered with JSX. Changes: (1) renames parameter `key` to `index` and creates a stable `contentId` derived from it; (2) wraps the `<button>` in an `<h3 className='faq-question-heading'>` for semantic heading structure; (3) removes the erroneous `key={key}` prop from the `<div>` wrapper (key props belong on the JSX returned from `.map`, not on the root element of a component function); (4) converts the call site from `F(q, a, i)` style to `<FaqItem key={iterator} ... />` JSX. Adds `donation-text-components.test.tsx` (50 lines, new file) with 3 tests: renders each FAQ item under an h3 heading, expanding one item does not affect others, and no console errors on hook toggle. Adds `.faq-question-heading { margin: 0 }` to `donation.css`. Closes issue #68170.",
+        "undisclosed_changes": [
+          "The issue (#68170) prescribes a specific solution — convert `FaqItem` to a proper component — and the PR's solution matches the issue template almost exactly. However, the issue does not mention adding an `<h3>` wrapper; this is an accessibility improvement added beyond the issue scope. The description says only 'render FaqItem as a proper component' and does not call out the `<h3>` semantic change.",
+          "The CSS addition (`.faq-question-heading { margin: 0 }`) is not mentioned in the PR description body — only the checklist is present, plus 'Closes #68170'.",
+          "The description does not mention the test file addition."
+        ]
+      },
+      "subagent_b": {
+        "slug": "scope-auditor",
+        "ticket_linked": true,
+        "ticket_source": "derived from description",
+        "scope_flags": []
+      },
+      "subagent_c": {
+        "slug": "reviewers-ghost",
+        "predicted_questions": [
+          {
+            "question": "The `<button>` is now wrapped in `<h3 className='faq-question-heading'>`. This changes the DOM structure: existing CSS rules targeting `.faq-item > button` or `.faq-item .map-title` directly may no longer match. Were visual regression checks run to confirm the FAQ layout is unchanged?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "The test file uses `fireEvent.click` rather than `userEvent.click`. Is that intentional, or should it use `@testing-library/user-event` for more realistic event simulation?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "The `aria-expanded` attribute on the button is set to the boolean `isExpanded` (a boolean prop), not a string. Some AT implementations require the string `'true'`/`'false'`. Was this tested with a screen reader?",
+            "file": null,
+            "line": null
+          }
+        ]
+      },
+      "totals": {
+        "undisclosed_changes": 3,
+        "scope_flags": 0,
+        "predicted_questions": 3
+      },
+      "source_file": "audit_results.json"
+    },
+    {
+      "pr_number": 70153,
+      "url": "https://github.com/freeCodeCamp/freeCodeCamp/pull/70153",
+      "title": "fix(client): preserve settings scroll destination",
+      "diffstat": "1 files · +3 · -2",
+      "author_claim": "When opening another settings section while the page was still scrolling, the sidebar could change the URL before the scroll handler read it. This sometimes sent the page to the wrong section and caused the E2E test to fail. The handler now uses the destination saved in the navigation event.",
+      "communication_debt_score": 22,
+      "score_band": "low",
+      "score_breakdown": {
+        "description_gap": 10,
+        "scope_creep": 0,
+        "unanswered_risk": 12
+      },
+      "subagent_a": {
+        "slug": "technical-truth-teller",
+        "true_summary": "Fixes a race condition in the settings page scroll handler. `handleHashChange` in `show-settings.tsx` is changed to accept an optional `HashChangeEvent` parameter; when the event is present it reads `new URL(event.newURL).hash` rather than `window.location.hash`, making the hash read atomic with respect to the event. Adds 3 lines, deletes 2. No other files are touched.",
+        "undisclosed_changes": [
+          "The PR description frames this purely as a race-condition / E2E-test fix. It does not mention that the function's call signature changes (from `() => {}` to `(event?: HashChangeEvent) => {}`), which is a breaking change if any caller passes no argument — though in practice the `hashchange` event listener passes the event object, so callers are fine.",
+          "The description mentions an E2E test was failing but does not state what the test was or whether any test file was modified. The diff shows no test changes, so coverage of the fix is implicit only."
+        ]
+      },
+      "subagent_b": {
+        "slug": "scope-auditor",
+        "ticket_linked": false,
+        "ticket_source": "none found",
+        "scope_flags": []
+      },
+      "subagent_c": {
+        "slug": "reviewers-ghost",
+        "predicted_questions": [
+          {
+            "question": "The `hashchange` event listener will now receive the `HashChangeEvent` object; but there may be other direct (non-event) call sites for `handleHashChange` that pass no argument. Were those audited to ensure they still work with `window.location.hash` as the fallback?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "Using `new URL(event.newURL).hash` means the hash is read from the event's captured URL, not the live DOM. Is there a scenario where `event.newURL` could be empty or malformed and cause `new URL(...)` to throw?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "The description says this 'fixed the E2E test'; which specific E2E test was flaking, and does it now pass deterministically on CI or only locally?",
+            "file": null,
+            "line": null
+          }
+        ]
+      },
+      "totals": {
+        "undisclosed_changes": 2,
+        "scope_flags": 0,
+        "predicted_questions": 3
+      },
+      "source_file": "audit_results.json"
+    },
+    {
+      "pr_number": 69851,
+      "url": "https://github.com/freeCodeCamp/freeCodeCamp/pull/69851",
+      "title": "fix(client): drop the stray closing paren from formatted Map output",
+      "diffstat": "3 files · +17 · -2",
+      "author_claim": "### What\nThe Map branch of `format()` in `client/src/utils/format.js` closes its template literal with `}})` while the adjacent Set branch correctly closes with `}}`. Every Map printed in the challenge test-runner console panel (format is what `frame.ts` feeds the console) carries a stray trailing `)`:\n```\nformat(new Map([['a', 1], ['b', 2]]))  ->  \"Map(2) {a => 1, b => 2})\"\nformat(new Map())                      ->  \"Map(0) {})\"\n```\nThe file's own comment says it is \"trying to mimic console.log\", and Node prints `Map(2) { 'a' => 1, 'b' => 2 }` with no trailing paren.\n### Changes\nThe stray `)` is removed in both copies of the file (`client/src/utils/format.js` and `tools/client-plugins/browser-scripts/utils/format.js`), and `formats Sets` / `formats Maps` cases are added to `client/src/utils/format.test.ts`, which previously covered neither branch.\n### Verification\nWith the fix, the format suite passes 9/9. Reverting only the Map line while keeping the tests fails with `expected 'Map(0) {})' to be 'Map(0) {}'`; restoring passes again. Prettier reports no differences on the changed files.",
+      "communication_debt_score": 20,
+      "score_band": "low",
+      "score_breakdown": {
+        "description_gap": 12,
+        "scope_creep": 0,
+        "unanswered_risk": 8
+      },
+      "subagent_a": {
+        "slug": "technical-truth-teller",
+        "true_summary": "Fixes a stray trailing `)` in the Map branch of `format()` by changing `}})` to `}}` in the template literal closing. The fix is applied identically in two separate copies of the file: `client/src/utils/format.js` and `tools/client-plugins/browser-scripts/utils/format.js`. A new test file `client/src/utils/format.test.ts` gains 15 lines of tests covering Set and Map formatting (empty and non-empty cases). The PR description accurately labels these as '### What' (bug) and '### Why' (Maps in the test-runner console panel showed a stray `)`).",
+        "undisclosed_changes": [
+          "The fix is applied to two copies of `format.js` (one under `client/src/utils/` and one under `tools/client-plugins/browser-scripts/utils/`), but the description only mentions `client/src/utils/format.js`. The duplication and its implications are not discussed.",
+          "The description does not mention that the existing `format.test.ts` file already existed and was extended; it frames the test additions as new, but does not clarify whether there were pre-existing tests for Map/Set."
+        ]
+      },
+      "subagent_b": {
+        "slug": "scope-auditor",
+        "ticket_linked": false,
+        "ticket_source": "none found",
+        "scope_flags": []
+      },
+      "subagent_c": {
+        "slug": "reviewers-ghost",
+        "predicted_questions": [
+          {
+            "question": "There are two copies of `format.js` (`client/src/utils/` and `tools/client-plugins/browser-scripts/utils/`). Why are these maintained as separate files rather than being shared? Is there a risk they diverge again in the future?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "The new tests cover the fixed `format()` for Maps and Sets; are there snapshot or integration tests in the challenge test-runner that would catch a regression in the console output format displayed to learners?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "The `format.test.ts` additions test the corrected output `Map(2) { a => 1, b => 2 }` — but the test file path is `client/src/utils/format.test.ts` while one of the two fixed files is in `tools/`. Is the `tools/` copy covered by any test?",
+            "file": null,
+            "line": null
+          }
+        ]
+      },
+      "totals": {
+        "undisclosed_changes": 2,
+        "scope_flags": 0,
+        "predicted_questions": 3
+      },
+      "source_file": "audit_results.json"
+    },
+    {
+      "pr_number": 69784,
+      "url": "https://github.com/freeCodeCamp/freeCodeCamp/pull/69784",
+      "title": "fix(client): preserve spaces in hint code",
+      "diffstat": "1 files · +5 · -0",
+      "author_claim": "Closes #67697\nThis preserve spaces in inline code blocks when they are displayed in the lower jaw",
+      "communication_debt_score": 18,
+      "score_band": "low",
+      "score_breakdown": {
+        "description_gap": 8,
+        "scope_creep": 4,
+        "unanswered_risk": 6
+      },
+      "subagent_a": {
+        "slug": "technical-truth-teller",
+        "true_summary": "Adds a single CSS rule to `client/src/templates/Challenges/components/independent-lower-jaw.css` that sets `white-space: pre-wrap; overflow-wrap: anywhere;` on `.independent-lower-jaw .hint-body code`. This preserves whitespace and wraps long code strings inside hint code blocks. Closes issue #67697, whose title identifies the real bug (spaces trimmed in IndependentLowerJaw hint code blocks) — matching this fix exactly. The linked ticket's body also separately mentions an unrelated pyramid test-case expected-output complaint, which this PR does not address; that is a distinct issue from the one named in the ticket's title and is not part of this PR's actual scope.",
+        "undisclosed_changes": [
+          "The `overflow-wrap: anywhere` addition is not mentioned in the PR description (which only describes preserving spaces) — it's a companion defensive rule preventing long unbreakable strings from overflowing the hint panel, not disclosed separately."
+        ]
+      },
+      "subagent_b": {
+        "slug": "scope-auditor",
+        "ticket_linked": true,
+        "ticket_source": "derived from description",
+        "scope_flags": [
+          {
+            "type": "beyond scope (low severity)",
+            "detail": "overflow-wrap: anywhere was added alongside white-space: pre-wrap; the ticket only asks about space preservation. Judged low-severity: this is a standard, tightly-coupled companion CSS property addressing the same rendering surface, not a behavioral or cross-cutting change."
+          }
+        ]
+      },
+      "subagent_c": {
+        "slug": "reviewers-ghost",
+        "predicted_questions": [
+          {
+            "question": "The linked ticket's body also describes a separate pyramid-generator test-case expected-output issue. Is that tracked as its own separate bug, or does closing #67697 inadvertently mark that unrelated complaint as resolved too?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "Was `overflow-wrap: break-word` considered instead of the more aggressive `overflow-wrap: anywhere`, which can break mid-word and may affect readability of short code snippets?",
+            "file": null,
+            "line": null
+          }
+        ]
+      },
+      "totals": {
+        "undisclosed_changes": 1,
+        "scope_flags": 1,
+        "predicted_questions": 2
+      },
+      "source_file": "audit_results.json",
+      "_note": "Re-verified in a fresh task after an earlier batch run misread the ticket. This result reconciles the ticket's title (the real, addressed bug) with its body (which also mentions an unrelated, unaddressed complaint)."
+    },
+    {
+      "pr_number": 69899,
+      "url": "https://github.com/freeCodeCamp/freeCodeCamp/pull/69899",
+      "title": "fix(client): add missing span rtl direction css rule",
+      "diffstat": "1 files · +4 · -1",
+      "author_claim": "This fixes a bug noticed in https://www.freecodecamp.org/arabic/learn/a2-english-for-developers/learn-greetings-in-your-first-day-at-the-office/task-2, where spans with the target language to be taught get the final punctuation in the beginning of the span.",
+      "communication_debt_score": 18,
+      "score_band": "low",
+      "score_breakdown": {
+        "description_gap": 8,
+        "scope_creep": 0,
+        "unanswered_risk": 10
+      },
+      "subagent_a": {
+        "slug": "technical-truth-teller",
+        "true_summary": "Adds `.highlighted-text` (used for language-course inline spans) to the RTL LTR-override list in `client/src/components/layouts/rtl-layout.css`. Specifically: (1) adds `[dir='rtl'] .highlighted-text,` to the selector group that forces `direction: ltr`, and (2) expands the `[dir='rtl'] code { word-break: normal; unicode-bidi: isolate; }` rule to also include `[dir='rtl'] .highlighted-text`. Net: +4 lines, -1 line (the `[dir='rtl'] code {` line becomes a multi-selector rule). Fixes misplaced trailing punctuation in RTL language-course content pages.",
+        "undisclosed_changes": [
+          "The description links to a specific affected page (freecodecamp.org/arabic/learn/.../task-2) but does not state whether the fix has been verified on other RTL-language course pages that use `.highlighted-text`.",
+          "The description does not mention the `word-break: normal; unicode-bidi: isolate;` rule extension — it only mentions the `direction: ltr` selector group addition."
+        ]
+      },
+      "subagent_b": {
+        "slug": "scope-auditor",
+        "ticket_linked": false,
+        "ticket_source": "none found",
+        "scope_flags": []
+      },
+      "subagent_c": {
+        "slug": "reviewers-ghost",
+        "predicted_questions": [
+          {
+            "question": "Is `.highlighted-text` used exclusively in language-course spans, or is it applied in other contexts across the client where the forced `direction: ltr` and `unicode-bidi: isolate` might have unintended side effects?",
+            "file": null,
+            "line": null
+          },
+          {
+            "question": "The fix is described as noticed on a specific Arabic course task — was it verified on all other RTL locale course pages (e.g., Urdu, Hebrew if present) and across multiple challenge types that use `.highlighted-text`?",
+            "file": null,
+            "line": null
+          }
+        ]
+      },
+      "totals": {
+        "undisclosed_changes": 2,
+        "scope_flags": 0,
+        "predicted_questions": 2
+      },
+      "source_file": "audit_results.json"
+    }
+  ]
+}
