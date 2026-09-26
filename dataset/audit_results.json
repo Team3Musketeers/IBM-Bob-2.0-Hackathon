@@ -17,7 +17,8 @@
       "The PR description states 'LTR was measured alongside RTL on every change and is unchanged.' Are there automated visual regression or RTL-specific integration tests covering these components, or is this assurance based solely on manual testing?"
     ],
     "communication_debt_score": 40,
-    "score_breakdown": { "description_gap": 14, "scope_creep": 8, "unanswered_risk": 18 }
+    "score_breakdown": { "description_gap": 14, "scope_creep": 8, "unanswered_risk": 18 },
+    "review_comment": "## 👻 Ghostwriter Review\n\n**Communication Debt: 40/100 — Moderate**\n\n### What actually changed\n- Replaced physical CSS directional properties (`left`, `right`, `margin-left`, `padding-left`, `border-right`) with logical equivalents across 9 files to improve RTL layout correctness.\n- Added explicit `[dir='rtl']` override rules in `show-settings.css` (box-shadow) and `super-block-accordion.css` (dropdown-icon rotation).\n- Converted inline React styles in `experience-display.tsx` and `portfolio-projects.tsx` to `marginInlineStart`.\n- Added a net-new `.tags-wrapper { padding-inline: 64px 10px }` rule in `super-block-accordion.css` — not a 1-to-1 logical replacement.\n\n### Undisclosed changes\n- `show-settings.css`: shorthand padding decomposed into `padding-block`/`padding-inline` — the start/end mapping should be verified against original intent.\n- `super-block-accordion.css`: new `.tags-wrapper` rule with a hard-coded 64px value, origin unexplained.\n- `super-block-accordion.css`: `[dir='rtl']` icon rotation covers only the collapsed state — expanded state RTL is unaddressed.\n- `toggle-setting.css`: off-screen hide pattern `left: -9999px` → `inset-inline-start: -9999px` not mentioned in description.\n\n### Review before merge\n- [ ] Confirm `padding-inline: 2rem 1rem` in `show-settings.css` correctly maps start=2rem, end=1rem — matches original LTR intent?\n- [ ] Investigate whether the `[dir='rtl']` box-shadow override could be replaced with a logical property, removing the need for the RTL selector entirely.\n- [ ] Verify expanded dropdown icons render correctly in RTL (no `[dir='rtl']` rule added for the expanded state).\n- [ ] Document the origin of the 64px value in `.tags-wrapper` — confirm it isn't replacing a rule defined elsewhere.\n- [ ] Confirm RTL coverage — are these changes backed by automated visual regression or RTL integration tests, or manual-only?"
   },
   {
     "pr_number": 70153,
@@ -33,7 +34,8 @@
       "The description says this 'fixed the E2E test'; which specific E2E test was flaking, and does it now pass deterministically on CI or only locally?"
     ],
     "communication_debt_score": 22,
-    "score_breakdown": { "description_gap": 10, "scope_creep": 0, "unanswered_risk": 12 }
+    "score_breakdown": { "description_gap": 10, "scope_creep": 0, "unanswered_risk": 12 },
+    "review_comment": "## 👻 Ghostwriter Review\n\n**Communication Debt: 22/100 — Low**\n\n### What actually changed\n- `handleHashChange` in `show-settings.tsx` gains an optional `HashChangeEvent` parameter.\n- When the event is present, the hash is read from `new URL(event.newURL).hash` rather than `window.location.hash`, making the read atomic with respect to the event.\n- Net change: +3 lines, -2 lines. No test files modified.\n\n### Undisclosed changes\n- The function signature changes from `() => {}` to `(event?: HashChangeEvent) => {}` — any direct call sites not passing an argument should be verified as still correct.\n- No E2E test file is modified; the description implies a flaky test is now fixed, but coverage of the fix is implicit only.\n\n### Review before merge\n- [ ] Audit all direct (non-event-listener) call sites of `handleHashChange` to confirm they work correctly with the `window.location.hash` fallback.\n- [ ] Confirm `event.newURL` is never empty or malformed in practice, or add a guard against `new URL(...)` throwing.\n- [ ] Identify the specific E2E test that was flaking and confirm it passes deterministically on CI."
   },
   {
     "pr_number": 69851,
@@ -49,7 +51,8 @@
       "The `format.test.ts` additions test the corrected output `Map(2) { a => 1, b => 2 }` — but the test file path is `client/src/utils/format.test.ts` while one of the two fixed files is in `tools/`. Is the `tools/` copy covered by any test?"
     ],
     "communication_debt_score": 20,
-    "score_breakdown": { "description_gap": 12, "scope_creep": 0, "unanswered_risk": 8 }
+    "score_breakdown": { "description_gap": 12, "scope_creep": 0, "unanswered_risk": 8 },
+    "review_comment": "## 👻 Ghostwriter Review\n\n**Communication Debt: 20/100 — Low**\n\n### What actually changed\n- Fixed a stray trailing `)` in the `Map` branch of `format()` by changing `}})` to `}}` in the template literal.\n- Fix applied to two separate copies of `format.js`: `client/src/utils/` and `tools/client-plugins/browser-scripts/utils/`.\n- Extended `format.test.ts` with 15 lines of Map and Set formatting tests (empty and non-empty cases).\n\n### Undisclosed changes\n- The fix touches two copies of `format.js`, but the description only mentions `client/src/utils/format.js` — the `tools/` copy and the duplication pattern are not discussed.\n- The `tools/` copy of `format.js` has no corresponding test coverage in the added test file.\n\n### Review before merge\n- [ ] Determine why two copies of `format.js` exist and whether they should be consolidated to prevent future divergence.\n- [ ] Add or confirm test coverage for the `tools/client-plugins/browser-scripts/utils/format.js` copy of the fix."
   },
   {
     "pr_number": 69766,
@@ -68,7 +71,8 @@
       "Do the Webpack warnings being fixed affect development builds, production builds, or both? Is there a CI step or log sample that shows the warnings are now gone?"
     ],
     "communication_debt_score": 38,
-    "score_breakdown": { "description_gap": 16, "scope_creep": 10, "unanswered_risk": 12 }
+    "score_breakdown": { "description_gap": 16, "scope_creep": 10, "unanswered_risk": 12 },
+    "review_comment": "## 👻 Ghostwriter Review\n\n**Communication Debt: 38/100 — Moderate**\n\n### What actually changed\n- Replaced named JSON imports with default-import-then-destructure across 17 files to silence Webpack 'should not import named export' warnings.\n- Scope extends beyond `client/src/` into `tools/client-plugins/` and `packages/challenge-builder/` — not mentioned in the description.\n- In `test-runner.ts`, a live re-export (`export { version }`) is replaced with a snapshot const (`export const version = curriculumHelpers.version`) — a subtle semantic change.\n- In `independent-lower-jaw.tsx`, destructuring is placed inside the component body (re-evaluates on every render) rather than at module scope like all other files.\n\n### Undisclosed changes\n- Changes to `tools/` and `packages/` are not enumerated in the description.\n- `test-runner.ts`: live re-export → snapshot const changes binding semantics for any downstream `version` importers.\n- `independent-lower-jaw.tsx` inconsistency (in-function destructuring) is unexplained.\n\n### Review before merge\n- [ ] Confirm the `independent-lower-jaw.tsx` in-function destructuring is intentional, or move it to module scope for consistency.\n- [ ] Check downstream consumers of `version` from `test-runner.ts` — confirm the live-binding → snapshot change has no side effects.\n- [ ] Verify Webpack warnings are resolved in both dev and production builds (provide a CI log or screenshot)."
   },
   {
     "pr_number": 69899,
@@ -83,7 +87,8 @@
       "The fix is described as noticed on a specific Arabic course task — was it verified on all other RTL locale course pages (e.g., Urdu, Hebrew if present) and across multiple challenge types that use `.highlighted-text`?"
     ],
     "communication_debt_score": 18,
-    "score_breakdown": { "description_gap": 8, "scope_creep": 0, "unanswered_risk": 10 }
+    "score_breakdown": { "description_gap": 8, "scope_creep": 0, "unanswered_risk": 10 },
+    "review_comment": "## 👻 Ghostwriter Review\n\n**Communication Debt: 18/100 — Low**\n\n### What actually changed\n- Added `.highlighted-text` to the `[dir='rtl']` LTR-override selector group in `rtl-layout.css`, forcing `direction: ltr` on RTL pages.\n- Extended the `[dir='rtl'] code { word-break: normal; unicode-bidi: isolate; }` rule to also cover `.highlighted-text`.\n- Net: +4 lines, -1 line. Fixes misplaced trailing punctuation in RTL language-course content.\n\n### Undisclosed changes\n- The `word-break: normal; unicode-bidi: isolate;` extension is not mentioned in the description — only the `direction: ltr` addition is called out.\n- Verification is described for a single Arabic course task; broader RTL locale coverage is not confirmed.\n\n### Review before merge\n- [ ] Confirm `.highlighted-text` is not used in non-language-course contexts where forcing `direction: ltr` and `unicode-bidi: isolate` could have unintended side effects.\n- [ ] Verify the fix on other RTL locales (e.g., Urdu) and across multiple challenge types that use `.highlighted-text`, not just the one Arabic task linked."
   },
   {
     "pr_number": 69784,
@@ -103,7 +108,8 @@
     ],
     "communication_debt_score": 18,
     "score_breakdown": { "description_gap": 8, "scope_creep": 4, "unanswered_risk": 6 },
-    "_note": "Re-verified in a fresh task after an earlier batch run misread the ticket. This result reconciles the ticket's title (the real, addressed bug) with its body (which also mentions an unrelated, unaddressed complaint)."
+    "_note": "Re-verified in a fresh task after an earlier batch run misread the ticket. This result reconciles the ticket's title (the real, addressed bug) with its body (which also mentions an unrelated, unaddressed complaint).",
+    "review_comment": "## 👻 Ghostwriter Review\n\n**Communication Debt: 18/100 — Low**\n\n### What actually changed\n- Added `white-space: pre-wrap; overflow-wrap: anywhere;` to `.independent-lower-jaw .hint-body code` in `independent-lower-jaw.css`.\n- Fixes spaces being trimmed in hint code blocks (issue #67697 title). The linked ticket's body also mentions an unrelated pyramid test-case complaint — that is not addressed here.\n\n### Undisclosed changes\n- `overflow-wrap: anywhere` is not mentioned in the description; only space-preservation is described. This companion property prevents overflow of long unbreakable strings.\n\n### Review before merge\n- [ ] Confirm closing #67697 does not inadvertently mark the separate pyramid-generator expected-output complaint in the ticket body as resolved.\n- [ ] Consider whether `overflow-wrap: break-word` is more appropriate than `anywhere` to avoid mid-word breaks in short code snippets."
   },
   {
     "pr_number": 69571,
@@ -120,7 +126,8 @@
       "The `aria-expanded` attribute on the button is set to the boolean `isExpanded` (a boolean prop), not a string. Some AT implementations require the string `'true'`/`'false'`. Was this tested with a screen reader?"
     ],
     "communication_debt_score": 28,
-    "score_breakdown": { "description_gap": 14, "scope_creep": 0, "unanswered_risk": 14 }
+    "score_breakdown": { "description_gap": 14, "scope_creep": 0, "unanswered_risk": 14 },
+    "review_comment": "## 👻 Ghostwriter Review\n\n**Communication Debt: 28/100 — Moderate**\n\n### What actually changed\n- Converted `FaqItem` from an imperatively-called function to a proper React component rendered with JSX; fixes the misplaced `key` prop.\n- Wrapped the `<button>` in `<h3 className='faq-question-heading'>` for semantic heading structure — an accessibility improvement beyond the issue scope.\n- Added a new test file `donation-text-components.test.tsx` (50 lines, 3 tests) and `.faq-question-heading { margin: 0 }` in `donation.css`.\n\n### Undisclosed changes\n- The `<h3>` wrapper is an undisclosed DOM structure change — CSS rules targeting `.faq-item > button` directly may no longer match.\n- New test file and CSS rule are not mentioned in the description.\n\n### Review before merge\n- [ ] Run visual regression checks for the FAQ section — the new `<h3>` wrapper changes the DOM and may break existing CSS selectors.\n- [ ] Confirm `fireEvent.click` is the intended choice over `userEvent.click` for the new tests.\n- [ ] Verify `aria-expanded` is set as a string (`'true'`/`'false'`) rather than a boolean, or confirm your target AT handles boolean values correctly."
   },
   {
     "pr_number": 69487,
@@ -143,7 +150,8 @@
       "`@paypal/react-paypal-js` pulls in `server-only` as a transitive dep. Does Gatsby's SSR build pipeline handle `server-only` correctly, or does this risk a build failure on SSR?"
     ],
     "communication_debt_score": 52,
-    "score_breakdown": { "description_gap": 24, "scope_creep": 8, "unanswered_risk": 20 }
+    "score_breakdown": { "description_gap": 24, "scope_creep": 8, "unanswered_risk": 20 },
+    "review_comment": "## 👻 Ghostwriter Review\n\n**Communication Debt: 52/100 — Significant**\n\n### What actually changed\n- Replaced the hand-rolled `PayPalButtonScriptLoader` class (204 lines) with `@paypal/react-paypal-js` v10.3.0.\n- `PaypalButton` rewritten as a function component; `isPaypalLoading`, `isSubscription`, and `ref` props removed from `PaypalButtonProps`.\n- `donate-form.tsx` updated to drop the now-removed `isPaypalLoading` prop.\n- E2E fake-PayPal SDK updated; `pnpm-lock.yaml` gains new transitive deps including `server-only`.\n\n### Undisclosed changes\n- `isPaypalLoading` prop deleted — loading/skeleton UX in `donate-form.tsx` is affected; not addressed in description.\n- `isSubscription` prop deleted and now derived internally (`duration !== 'one-time'`) — not called out.\n- `intent: 'CAPTURE'` added explicitly to `createOrder` — new runtime behaviour, not mentioned.\n- New transitive dep `server-only` not discussed; SSR compatibility with Gatsby is unverified.\n\n### Review before merge\n- [ ] Clarify how the donation form now communicates PayPal loading state to the parent, or confirm the loading indicator UX has been intentionally removed.\n- [ ] Confirm `optionsKey` changes (e.g., one-time ↔ monthly switch) don't cause a visible SDK reload flicker via the `RESET_OPTIONS` dispatch.\n- [ ] Verify `@paypal/react-paypal-js` and its `server-only` transitive dep work correctly with Gatsby's SSR pipeline.\n- [ ] Confirm `intent: 'CAPTURE'` being explicit now has no unintended effect on the PayPal order capture flow."
   },
   {
     "pr_number": 69775,
@@ -160,7 +168,8 @@
       "The `hasOlderChallenges` and `hasNewerChallenges` helpers that scanned the map to determine whether prev/next navigation buttons should be shown are replaced by simple offset comparisons (`monthOffset > minMonthOffset`). Does the hardcoded `minMonthOffset = -12` correctly bound the calendar to the full available data range, or could there be edge cases at the start of the challenge archive?"
     ],
     "communication_debt_score": 34,
-    "score_breakdown": { "description_gap": 18, "scope_creep": 0, "unanswered_risk": 16 }
+    "score_breakdown": { "description_gap": 18, "scope_creep": 0, "unanswered_risk": 16 },
+    "review_comment": "## 👻 Ghostwriter Review\n\n**Communication Debt: 34/100 — Moderate**\n\n### What actually changed\n- Removed the 'first-run' gating scaffolding (constant, helpers, state variable, test cases) across 5 files.\n- The API route (`daily-coding-challenge.ts`) no longer returns 404 for future dates — any date is now accessible.\n- Calendar nav (`showPrevButton`/`showNextButton`) simplified to hardcoded offset comparisons; `requireExactYear` filtering removed entirely.\n- Net: -115 lines, +6 lines.\n\n### Undisclosed changes\n- The API behaviour change (future dates now accessible) is not described — the PR frames this as cleanup only.\n- `requireExactYear` removal and its calendar display implications are unexplained.\n- Removal of 2 API test cases is not mentioned.\n\n### Review before merge\n- [ ] Confirm it is intentional that users can now access future challenge dates directly via URL — or add a non-temporal guard if access should still be restricted.\n- [ ] Verify that removing `requireExactYear` doesn't cause year-rollover display bugs in the calendar (e.g., 2025 challenges appearing in a 2026 month view).\n- [ ] Confirm `minMonthOffset = -12` correctly bounds the calendar to the full available challenge archive with no edge cases at the archive start."
   },
   {
     "pr_number": 69271,
@@ -180,7 +189,8 @@
       "The icon type change removes `JSX.IntrinsicAttributes &` from all props. In React 19, `JSX.IntrinsicAttributes` is now merged into the base component interface. Were there cases where having `IntrinsicAttributes` explicit was providing stricter type checking that is now lost?"
     ],
     "communication_debt_score": 44,
-    "score_breakdown": { "description_gap": 20, "scope_creep": 10, "unanswered_risk": 14 }
+    "score_breakdown": { "description_gap": 20, "scope_creep": 10, "unanswered_risk": 14 },
+    "review_comment": "## 👻 Ghostwriter Review\n\n**Communication Debt: 44/100 — Moderate**\n\n### What actually changed\n- Upgraded React/ReactDOM 18.3.1 → 19.2.8, `@testing-library/react` 14 → 16; dropped `react-test-renderer`.\n- Removed `JSX.IntrinsicAttributes &` from prop types in ~80 icon `.tsx` files (React 19 no longer requires it).\n- Added `void headComponents.sort(...)` in `gatsby-ssr.tsx` as a workaround for a react-helmet/Gatsby SSR lint conflict.\n\n### Undisclosed changes\n- The `gatsby-ssr.tsx` `void` workaround is not described — it silences a lint warning without fixing the underlying incompatibility.\n- The ~80 icon type-signature changes are a bulk mechanical change; the effect on TypeScript consumers that relied on `IntrinsicAttributes` being explicit is not discussed.\n- `react-test-renderer` removal is mentioned but no audit of existing test imports is shown.\n\n### Review before merge\n- [ ] Document what the react-helmet/Gatsby SSR conflict is and whether `void` is a permanent fix or a temporary workaround pending a library update.\n- [ ] Confirm no test file still imports `react-test-renderer` after its removal.\n- [ ] Assess whether removing `JSX.IntrinsicAttributes &` from icon props introduces any TypeScript type-safety regressions for downstream consumers."
   },
   {
     "pr_number": 69474,
@@ -201,6 +211,7 @@
       "The `void headComponents.sort(...)` workaround (added in #69271, reverted here) was addressing a react-helmet/Gatsby SSR issue. Does reverting to React 18 make that workaround unnecessary, or does the underlying Gatsby incompatibility still exist?"
     ],
     "communication_debt_score": 68,
-    "score_breakdown": { "description_gap": 30, "scope_creep": 14, "unanswered_risk": 24 }
+    "score_breakdown": { "description_gap": 30, "scope_creep": 14, "unanswered_risk": 24 },
+    "review_comment": "## 👻 Ghostwriter Review\n\n**Communication Debt: 68/100 — Significant**\n\n### What actually changed\n- Full revert of PR #69271 (React 18 → 19 upgrade): React/ReactDOM downgraded back to 18.3.1, `react-test-renderer` re-added, ~80 icon type signatures restored.\n- Root cause: PayPal's legacy SDK calling `ReactDOM.findDOMNode`, removed in React 19, causing a blank donate page (issue #69473).\n- Testing checkbox is explicitly **unchecked** in the PR checklist.\n\n### Undisclosed changes\n- The description is a single auto-generated git revert line — zero explanation of why, what broke, or what the remediation plan is.\n- ~80 icon file type-signature reversions and the `gatsby-ssr.tsx` change undo are not mentioned.\n- `react-test-renderer` re-added without stating whether anything actually depends on it.\n\n### Review before merge\n- [ ] **Testing was not performed** — for a 98-file React version revert, document what was verified (smoke test, CI, manual) before this lands.\n- [ ] Add a description explaining the root cause (PayPal `findDOMNode`) and the remediation plan (fix PayPal first, then re-land React 19).\n- [ ] Confirm whether `react-test-renderer` is actually used by any test, or flag it for removal in the next React 19 attempt.\n- [ ] Clarify whether the react-helmet/Gatsby `void headComponents.sort(...)` workaround is still needed under React 18."
   }
 ]
