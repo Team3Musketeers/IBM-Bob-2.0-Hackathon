@@ -1,0 +1,21 @@
+# Ghostwriter live audit service.
+#
+# Requires a .env next to this file (cp .env.example .env) with a real
+# LLM_API_KEY — the service returns 503 on every audit without it.
+#
+#   docker compose up --build      -> http://localhost:3000
+#
+# The service has no database or sibling containers, so this file is
+# intentionally just the build + env + port mapping.
+services:
+  live-service:
+    build: .
+    image: ghostwriter-live
+    container_name: ghostwriter-live
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      PORT: "3000"
+    restart: unless-stopped

@@ -26,13 +26,27 @@ const loadPrompt = (file) => fs.readFileSync(path.join(PROMPT_DIR, file), 'utf8'
 // audited PR WITHOUT re-running the 3 subagents. The scoring in
 // audit_results.json was produced and validated inside Bob 2.0; this only
 // re-runs the cheap, deterministic-shaped composition step on top of it. ----
-const DATASET_DIR = path.join(__dirname, 'dataset');
+// The diffs live in one of two places depending on how you run the service:
+//   - repo checkout: ../dataset (sibling of live-service/)
+//   - Docker image:  only live-service/ is copied in, so it must be ./dataset
+// DATASET_DIR overrides both. Previously this was hardcoded to ./dataset,
+// which does not exist in a repo checkout, so every request 404'd.
+const DATASET_DIR = process.env.DATASET_DIR
+  ? path.resolve(process.env.DATASET_DIR)
+  : [path.join(__dirname, 'dataset'), path.join(__dirname, '..', 'dataset')]
+      .find((dir) => fs.existsSync(dir)) || path.join(__dirname, 'dataset');
 
 // Serve a bundled diff by PR number, so the dashboard can request one
 // on demand instead of embedding all 11 (some are 250KB+) into the page.
 app.get('/api/dataset-diff/:prNumber', (req, res) => {
   const file = path.join(DATASET_DIR, `pr_${req.params.prNumber}.diff`);
-  if (!fs.existsSync(file)) return res.status(404).json({ error: 'No bundled diff for this PR number.' });
+  if (!fs.existsSync(file)) {
+    return res.status(404).json({
+      error: `No bundled diff for PR #${req.params.prNumber}.`,
+      datasetDir: DATASET_DIR,
+      hint: 'Set DATASET_DIR in .env to the folder holding pr_<number>.diff files.',
+    });
+  }
   res.type('text/plain').send(fs.readFileSync(file, 'utf8'));
 });
 
@@ -43,6 +57,23 @@ const PROMPTS = {
   synthesis: loadPrompt('synthesis.md'),
   reviewComposer: loadPrompt('review-composer.md'),
 };
+
+// ---- Config check ----
+// Without these, the server used to start fine and then fail every request
+// with "Failed to parse URL from undefined/chat/completions", which tells a
+// demo audience nothing. Check once at boot and answer with an actionable
+// 503 instead.
+const REQUIRED_ENV = ['LLM_API_BASE_URL', 'LLM_API_KEY', 'LLM_MODEL'];
+const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key]);
+
+if (missingEnv.length) {
+  console.warn('\n' + '='.repeat(66));
+  console.warn('  WARNING: Ghostwriter is not fully configured.');
+  console.warn(`  Missing: ${missingEnv.join(', ')}`);
+  console.warn('  The page will load, but every audit will fail until you:');
+  console.warn('    cp .env.example .env   # then fill in LLM_API_KEY');
+  console.warn('='.repeat(66) + '\n');
+}
 
 // All 4 modes, in the order they're offered to the caller. reviewComposer
 // runs after synthesis (it depends on the combined audit), never in
@@ -138,6 +169,44 @@ async function fetchFromGithub(prUrl) {
   };
 }
 
+// ---- Rate limiting ----
+// Every audit costs 5 model calls against a metered API key, and
+// /api/audit is unauthenticated — so a publicly exposed instance is a
+// fireable hose. This is a fixed-window per-client-IP counter, which is
+// enough to stop a demo scriptie or an accidental loop without pulling in
+// a dependency or a Redis. Set RATE_LIMIT_MAX=0 to disable.
+const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX ?? 20);
+const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 10 * 60 * 1000);
+const hits = new Map();
+
+// Drop expired buckets so a long-running process can't grow unbounded.
+setInterval(() => {
+  const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS;
+  for (const [key, entry] of hits) if (entry.start < cutoff) hits.delete(key);
+}, RATE_LIMIT_WINDOW_MS).unref();
+
+function rateLimit(req, res, next) {
+  if (!RATE_LIMIT_MAX || RATE_LIMIT_MAX <= 0) return next();
+  const key = req.ip || 'unknown';
+  const now = Date.now();
+  let entry = hits.get(key);
+  if (!entry || now - entry.start >= RATE_LIMIT_WINDOW_MS) {
+    entry = { start: now, count: 0 };
+    hits.set(key, entry);
+  }
+  entry.count += 1;
+  res.set('X-RateLimit-Limit', String(RATE_LIMIT_MAX));
+  res.set('X-RateLimit-Remaining', String(Math.max(0, RATE_LIMIT_MAX - entry.count)));
+  if (entry.count > RATE_LIMIT_MAX) {
+    const retryAfter = Math.ceil((entry.start + RATE_LIMIT_WINDOW_MS - now) / 1000);
+    res.set('Retry-After', String(retryAfter));
+    return res.status(429).json({
+      error: `Rate limit reached: ${RATE_LIMIT_MAX} audits per ${Math.round(RATE_LIMIT_WINDOW_MS / 60000)} min. Retry in ${retryAfter}s.`,
+    });
+  }
+  next();
+}
+
 // ---- Main endpoint ----
 // Body: EITHER { prUrl } OR { title, original_description, diff, linked_ticket }
 // Plus optional `modes`: array of which of the 4 modes to run, from
@@ -145,8 +214,14 @@ async function fetchFromGithub(prUrl) {
 // Defaults to all 4. This lets the caller run only the subagents they
 // want — e.g. skip Scope Auditor if there's no linked ticket to compare
 // against, or skip Review Composer if they just want the raw score.
-app.post('/api/audit', async (req, res) => {
+app.post('/api/audit', rateLimit, async (req, res) => {
   try {
+    if (missingEnv.length) {
+      return res.status(503).json({
+        error: `Server not configured: missing ${missingEnv.join(', ')}. Run \`cp .env.example .env\` and set your API key.`,
+      });
+    }
+
     let { prUrl, title, original_description, diff, linked_ticket, modes, precomputedAudit } = req.body;
 
     if (prUrl) {

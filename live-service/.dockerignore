@@ -1,0 +1,15 @@
+# Keep the build context small and, critically, stop the host's
+# platform-specific node_modules from overwriting the image's own copy
+# (the Dockerfile runs `npm ci` before `COPY . .`).
+node_modules
+npm-debug.log*
+
+# Secrets must never be baked into an image.
+.env
+.env.local
+
+.git
+.gitignore
+Dockerfile
+.dockerignore
+README-live.md
