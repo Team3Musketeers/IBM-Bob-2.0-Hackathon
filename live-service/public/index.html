@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ghostwriter — Live Audit</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; background:#111; color:#eee; }
+  textarea, input { width: 100%; box-sizing: border-box; padding: 10px; margin: 6px 0 16px; background:#1c1c1c; color:#eee; border:1px solid #333; border-radius:6px; font-family: inherit; }
+  textarea { min-height: 120px; }
+  button { padding: 10px 18px; border: none; border-radius: 6px; background:#4f7cff; color:#fff; font-weight:600; cursor:pointer; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .field { font-size: 13px; opacity: 0.7; margin-bottom: 4px; }
+  #result { white-space: pre-wrap; background:#1c1c1c; border:1px solid #333; border-radius:6px; padding:16px; margin-top:20px; display:none; }
+  .score { font-size: 32px; font-weight: 700; }
+  .modes { display: flex; flex-wrap: wrap; gap: 14px; margin: 6px 0 20px; padding: 12px; background:#1a1a1a; border:1px solid #333; border-radius:6px; }
+  .modes label { display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
+  .badge { display:inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-left: 6px; }
+  .badge.aligned { background:#1f5c3a; color:#8fe3b3; }
+  .badge.partial { background:#5c4a1f; color:#e3c98f; }
+  .badge.diverged { background:#5c1f1f; color:#e38f8f; }
+  .badge.insufficient_data { background:#333; color:#aaa; }
+  pre.review { background:#141414; padding:12px; border-radius:6px; overflow-x:auto; }
+</style>
+</head>
+<body>
+  <h1>Ghostwriter — Live Audit</h1>
+  <p>Paste a GitHub PR URL, or paste the raw diff + description directly.</p>
+
+  <div class="field">Which modes to run</div>
+  <div class="modes">
+    <label><input type="checkbox" value="truthTeller" checked> Technical Truth-Teller</label>
+    <label><input type="checkbox" value="scopeAuditor" checked> Scope Auditor</label>
+    <label><input type="checkbox" value="reviewersGhost" checked> Reviewer's Ghost</label>
+    <label><input type="checkbox" value="reviewComposer" checked> Review Composer (write review comment)</label>
+  </div>
+
+  <div class="field">GitHub PR URL (optional — fills the fields below automatically)</div>
+  <input id="prUrl" placeholder="https://github.com/owner/repo/pull/123" />
+
+  <div class="field">Original description</div>
+  <textarea id="description" placeholder="What the PR description says..."></textarea>
+
+  <div class="field">Linked ticket (optional — used by Scope Auditor)</div>
+  <textarea id="ticket" placeholder="Paste the linked ticket text if there is one..."></textarea>
+
+  <div class="field">Diff</div>
+  <textarea id="diff" placeholder="Paste the raw diff here if not using a PR URL..."></textarea>
+
+  <button id="run">Audit this PR</button>
+
+  <div id="result"></div>
+
+<script>
+const run = document.getElementById('run');
+const resultEl = document.getElementById('result');
+
+function esc(s) {
+  return (s ?? '').toString().replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+
+run.addEventListener('click', async () => {
+  const modes = [...document.querySelectorAll('.modes input:checked')].map(el => el.value);
+  if (modes.length === 0) {
+    alert('Select at least one mode to run.');
+    return;
+  }
+
+  run.disabled = true;
+  run.textContent = 'Running selected modes...';
+  resultEl.style.display = 'block';
+  resultEl.textContent = '...';
+
+  const prUrl = document.getElementById('prUrl').value.trim();
+  const body = {
+    modes,
+    ...(prUrl
+      ? { prUrl }
+      : {
+          original_description: document.getElementById('description').value,
+          linked_ticket: document.getElementById('ticket').value || null,
+          diff: document.getElementById('diff').value,
+        }),
+  };
+
+  try {
+    const res = await fetch('/api/audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Request failed');
+
+    const consensusBadge = data.agent_consensus
+      ? `<span class="badge ${esc(data.agent_consensus)}">${esc(data.agent_consensus)}</span>`
+      : '';
+
+    resultEl.innerHTML = `
+      <div class="score">Communication Debt Score: ${data.communication_debt_score ?? '—'}</div>
+      ${data.subagents_skipped?.length ? `<p><i>Skipped: ${esc(data.subagents_skipped.join(', '))} — some scoring dimensions are partial.</i></p>` : ''}
+
+      <p><b>Agent consensus:</b> ${consensusBadge} ${data.human_review_recommended ? '<b style="color:#e38f8f">— human review recommended</b>' : ''}</p>
+      ${data.disagreement_note ? `<p><b>Disagreement:</b> ${esc(data.disagreement_note)}</p>` : ''}
+
+      <p><b>True summary:</b><br>${esc(data.true_summary)}</p>
+      <p><b>Undisclosed changes:</b><br>${(data.undisclosed_changes || []).map(esc).join('<br>') || '(none run / none found)'}</p>
+      <p><b>Scope flags:</b><br>${(data.scope_flags || []).map(f => `[${esc(f.type)}] ${esc(f.detail)}`).join('<br>') || '(none run / none found)'}</p>
+      <p><b>Predicted reviewer questions:</b><br>${(data.predicted_questions || []).map(q => esc(q.question)).join('<br>') || '(none run)'}</p>
+
+      ${data.review_comment ? `<p><b>Review Composer output:</b></p><pre class="review">${esc(data.review_comment)}</pre>` : ''}
+    `;
+  } catch (err) {
+    resultEl.textContent = 'Error: ' + err.message;
+  } finally {
+    run.disabled = false;
+    run.textContent = 'Audit this PR';
+  }
+});
+</script>
+</body>
+</html>
