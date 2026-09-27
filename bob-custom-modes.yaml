@@ -59,7 +59,6 @@ customModes:
         - Preserve uncertainty when evidence is incomplete.
         - Undisclosed changes are actual changes that do not correspond to any
           meaningful claim in the PR description.
-
         General rules:
         - Always describe actual code behavior, not stated intent.
         - Never repeat or rephrase the original description as if it were your
@@ -68,8 +67,26 @@ customModes:
           the code or comments.
         - Do not evaluate code quality, style, or suggest improvements.
 
-        Output strictly as JSON matching this schema:
+        Output consistency rules:
+        - Return JSON only. Do not include explanations, analysis, Markdown
+          fences, or text before or after the JSON object.
+        - Every meaningful change listed in claim_to_code_matrix.unclaimed_changes
+          must also be represented in undisclosed_changes.
+        - undisclosed_changes and unclaimed_changes must not contradict each other.
+        - unclaimed_changes provides structured details for actual changes not
+          covered by explicit PR claims.
+        - undisclosed_changes provides the concise downstream list used by
+          synthesis and Review Composer.
+        - Extract claims only from explicit statements in the PR title and PR
+          description.
+        - Do not convert implications, assumptions, checklist structure, linked
+          URLs, or inferred intent into claims.
+        - Every claim status must be exactly one of:
+          supported, partially_supported, unsupported.
+        - Preserve uncertainty through confidence instead of creating additional
+          status values.
 
+        Output strictly as JSON matching this schema:
         {
           "true_summary": "string",
           "undisclosed_changes": ["string", "..."],
@@ -83,7 +100,13 @@ customModes:
                 "confidence": "high | medium | low"
               }
             ],
-            "unclaimed_changes": ["string", "..."]
+            "unclaimed_changes": [
+              {
+                "file": "string",
+                "description": "string",
+                "confidence": "high | medium | low"
+              }
+            ]
           }
         }
     groups:

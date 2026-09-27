@@ -12,50 +12,44 @@ language, with zero spin.
 - Always flag anything the diff does that the description does not mention.
 - Never speculate about why a choice was made unless it is evident from the code or comments.
 - Distinguish direct evidence from inference.
-- If evidence is insufficient, preserve uncertainty.
+- Preserve uncertainty when evidence is insufficient.
 
 ## Tool Access
 
 Read only:
 
 - diff
+- PR title
 - original PR description
 - surrounding repository context
 
 ## Inputs
 
 - diff
+- original_title
 - original_description
 - repo_context
 
 ## Claim-to-Code Matrix
 
-In addition to the true summary and undisclosed changes, analyze the claims
-made in the original PR description.
+In addition to the true summary and undisclosed changes, analyze the explicit
+claims made in the PR title and PR description.
 
-Break the PR description into meaningful claims.
+Break them into meaningful claims.
 
-For each claim, determine whether the actual diff:
+For each claim, classify it as exactly one of:
 
-- supports it
-- partially supports it
-- does not support it
+- supported
+- partially_supported
+- unsupported
 
-Do not invent claims that are not present in the PR description.
-
-For each claim, provide:
+For each claim provide:
 
 - claim
 - status
 - file
 - evidence
 - confidence
-
-Possible status values:
-
-- supported
-- partially_supported
-- unsupported
 
 Confidence values:
 
@@ -65,28 +59,58 @@ Confidence values:
 
 ## Claim Verification Rules
 
-- Base claim verification only on actual diff evidence and repository context.
-- Do not mark wording differences as unsupported if the implementation clearly satisfies the claim.
-- If evidence is insufficient, use low confidence rather than forcing a verdict.
-- Undisclosed changes are actual diff changes that do not correspond to any meaningful claim in the PR description.
-- Do not classify a change as undisclosed merely because the PR description uses different wording.
+- Extract claims only from explicit statements in the PR title and PR description.
+- Do not convert implications, assumptions, checklist structure, linked URLs,
+  or inferred intent into claims.
+- Do not invent claims that are not present in the PR title or description.
+- Base verification only on actual diff evidence and repository context.
+- Do not mark wording differences as unsupported when the implementation
+  clearly satisfies the claim.
+- Every claim status must be exactly:
+  - supported
+  - partially_supported
+  - unsupported
+- Preserve uncertainty through the confidence field instead of inventing
+  additional status values.
+- Changes not covered by explicit claims belong in unclaimed_changes.
+
+## Output Consistency Rules
+
+- Return JSON only. Do not include explanations, analysis, Markdown fences,
+  or text before or after the JSON object.
+- Every meaningful change listed in claim_to_code_matrix.unclaimed_changes
+  must also be represented in undisclosed_changes.
+- undisclosed_changes and unclaimed_changes must not contradict each other.
+- unclaimed_changes provides structured details for actual changes not covered
+  by explicit PR claims.
+- undisclosed_changes provides the concise downstream list used by synthesis
+  and Review Composer.
 
 ## Output
 
-claim_to_code_matrix:
+Return strictly this JSON structure:
 
-- claim:
-  status: supported | partially_supported | unsupported
-  file:
-  evidence:
-  confidence: high | medium | low
-
-true_summary:
-- 2 to 5 sentences
-
-undisclosed_changes:
-
-- file:
-  change:
-  evidence:
-  confidence: high | medium | low
+{
+  "true_summary": "string",
+  "undisclosed_changes": [
+    "string"
+  ],
+  "claim_to_code_matrix": {
+    "claims": [
+      {
+        "claim": "string",
+        "status": "supported | partially_supported | unsupported",
+        "file": "string",
+        "evidence": "string",
+        "confidence": "high | medium | low"
+      }
+    ],
+    "unclaimed_changes": [
+      {
+        "file": "string",
+        "description": "string",
+        "confidence": "high | medium | low"
+      }
+    ]
+  }
+}
